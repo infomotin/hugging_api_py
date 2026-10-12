@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Executive Analytics Dashboard{% endblock %}
+{% block header_title %}Analytics &amp; System Overview{% endblock %}
+
+{% block content %}
+<!-- KPI Metric Cards Grid -->
+<div class="stats-grid">
+  <div class="glass-card stat-card">
+    <div>
+      <div class="stat-label">Total Users</div>
+      <div class="stat-val">{{ total_users }}</div>
+      <div style="font-size: 0.8rem; color: #34d399; margin-top: 4px;">● Multi-tenant RBAC</div>
+    </div>
+    <div class="stat-icon-wrapper icon-purple">👥</div>
+  </div>
+
+  <div class="glass-card stat-card">
+    <div>
+      <div class="stat-label">Active Accounts</div>
+      <div class="stat-val">{{ active_users }}</div>
+      <div style="font-size: 0.8rem; color: #38bdf8; margin-top: 4px;">{{ "%.0f"|format((active_users / total_users * 100) if total_users > 0 else 100) }}% active rate</div>
+    </div>
+    <div class="stat-icon-wrapper icon-emerald">⚡</div>
+  </div>
+
+  <div class="glass-card stat-card">
+    <div>
+      <div class="stat-label">Roles &amp; Tiers</div>
+      <div class="stat-val">{{ total_roles }}</div>
+      <div style="font-size: 0.8rem; color: #c084fc; margin-top: 4px;">Hierarchical Matrix</div>
+    </div>
+    <div class="stat-icon-wrapper icon-cyan">🛡️</div>
+  </div>
+
+  <div class="glass-card stat-card">
+    <div>
+      <div class="stat-label">Catalog Resources</div>
+      <div class="stat-val">{{ total_resources }}</div>
+      <div style="font-size: 0.8rem; color: #fbbf24; margin-top: 4px;">Governed Articles</div>
+    </div>
+    <div class="stat-icon-wrapper icon-amber">📁</div>
+  </div>
+</div>
+
+<!-- Two Column Analytics Section -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px; margin-bottom: 30px;">
+  <!-- Role Distribution Breakdown -->
+  <div class="glass-card" style="padding: 24px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+      <h3 style="font-size: 1.15rem;">Role Allocation Ratio</h3>
+      {% if current_user.has_permission('manage_users') %}
+      <a href="{{ url_for('dashboard.roles') }}" class="btn btn-sm btn-secondary">View Matrix &rarr;</a>
+      {% endif %}
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      {% for item in roles_stats %}
+      <div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.875rem; margin-bottom: 6px;">
+          <span style="font-weight: 600;">{{ item.name }}</span>
+          <span style="color: var(--text-muted);">{{ item.count }} accounts ({{ item.percentage }}%)</span>
+        </div>
+        <div style="height: 8px; background: rgba(255, 255, 255, 0.06); border-radius: 9999px; overflow: hidden;">
+          {% if item.name == 'Admin' %}
+            <div style="width: {{ item.percentage }}%; height: 100%; background: linear-gradient(90deg, #a855f7, #6366f1); border-radius: 9999px;"></div>
+          {% elif item.name == 'Manager' %}
+            <div style="width: {{ item.percentage }}%; height: 100%; background: linear-gradient(90deg, #06b6d4, #3b82f6); border-radius: 9999px;"></div>
+          {% else %}
+            <div style="width: {{ item.percentage }}%; height: 100%; background: linear-gradient(90deg, #10b981, #06b6d4); border-radius: 9999px;"></div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div style="margin-top: 24px; padding: 14px; background: rgba(15, 23, 42, 0.6); border-radius: var(--radius-md); font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 10px;">
+      <span>💡</span>
+      <span>Permissions are dynamically enforced across all API endpoints &amp; UI views in real time.</span>
+    </div>
+  </div>
+
+  <!-- Real-time Activity Feed -->
+  <div class="glass-card" style="padding: 24px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+      <h3 style="font-size: 1.15rem;">Live Activity Feed</h3>
+      {% if current_user.has_permission('view_audit_logs') %}
+      <a href="{{ url_for('dashboard.audit_logs') }}" class="btn btn-sm btn-secondary">Full Audit Trail &rarr;</a>
+      {% endif %}
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      {% for act in recent_activities %}
+      <div style="display: flex; align-items: flex-start; gap: 12px; font-size: 0.875rem; border-bottom: 1px solid rgba(255, 255, 255, 0.04); padding-bottom: 10px;">
+        <div style="width: 28px; height: 28px; border-radius: 50%; background: rgba(99, 102, 241, 0.15); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: #818cf8; flex-shrink: 0;">
+          📌
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+            <strong style="color: #fff;">{{ act.username or 'System' }}</strong>
+            <span style="font-size: 0.75rem; color: var(--text-dim);">{{ act.timestamp.strftime('%H:%M:%S') if act.timestamp }}</span>
+          </div>
+          <div style="color: var(--text-muted); font-size: 0.825rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            {{ act.details }}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Recent Users Preview Table -->
+<div class="glass-card" style="padding: 24px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+    <div>
+      <h3 style="font-size: 1.15rem;">Recently Joined Members</h3>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Active accounts registered on this node</p>
+    </div>
+    {% if current_user.has_permission('manage_users') %}
+    <a href="{{ url_for('dashboard.users') }}" class="btn btn-sm btn-primary">Manage All Users &rarr;</a>
+    {% endif %}
+  </div>
+
+  <div class="table-container">
+    <table class="modern-table">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Created Date</th>
+          <th>Last Login</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in recent_users %}
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div class="user-avatar" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                {{ u.username[:1].upper() }}
+              </div>
+              <div>
+                <div style="font-weight: 600; color: #fff;">{{ u.username }}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">{{ u.email }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            {% if u.role.name == 'Admin' %}
+              <span class="badge badge-admin">Admin</span>
+            {% elif u.role.name == 'Manager' %}
+              <span class="badge badge-manager">Manager</span>
+            {% else %}
+              <span class="badge badge-user">User</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_active %}
+              <span class="badge badge-success">Active</span>
+            {% else %}
+              <span class="badge badge-danger">Disabled</span>
+            {% endif %}
+          </td>
+          <td style="color: var(--text-muted); font-size: 0.85rem;">
+            {{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '-' }}
+          </td>
+          <td style="color: var(--text-muted); font-size: 0.85rem;">
+            {{ u.last_login.strftime('%Y-%m-%d %H:%M') if u.last_login else 'Never' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

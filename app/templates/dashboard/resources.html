@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Resources &amp; Catalog{% endblock %}
+{% block header_title %}Managed Resources &amp; Articles{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="padding: 24px; margin-bottom: 24px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+    <div>
+      <h3 style="font-size: 1.25rem;">Resource Catalog</h3>
+      <p style="color: var(--text-muted); font-size: 0.875rem;">
+        Articles and entities protected by role-level permission guards.
+      </p>
+    </div>
+
+    {% if current_user.has_permission('create_resources') %}
+    <button class="btn btn-primary btn-sm" onclick="openModal('createResourceModal')">
+      + Create New Resource
+    </button>
+    {% else %}
+    <span class="badge badge-user">Read-Only Permission</span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Resources Grid -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;">
+  {% for item in resources %}
+  <div class="glass-card" style="padding: 24px; display: flex; flex-direction: column; justify-content: space-between;">
+    <div>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+        <span class="badge badge-manager" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.3);">
+          {{ item.category }}
+        </span>
+        <span class="badge badge-success">{{ item.status }}</span>
+      </div>
+
+      <h4 style="font-size: 1.15rem; margin-bottom: 10px; color: #fff;">{{ item.title }}</h4>
+      <p style="color: var(--text-muted); font-size: 0.875rem; line-height: 1.6; margin-bottom: 20px;">
+        {{ item.description }}
+      </p>
+    </div>
+
+    <div style="border-top: 1px solid var(--border-subtle); padding-top: 16px; display: flex; align-items: center; justify-content: space-between;">
+      <div style="font-size: 0.75rem; color: var(--text-dim);">
+        By <strong style="color: #cbd5e1;">{{ item.author.username if item.author else 'System' }}</strong> &bull; {{ item.created_at.strftime('%b %d, %Y') if item.created_at }}
+      </div>
+
+      {% if current_user.has_permission('delete_resources') or (item.created_by == current_user.id) %}
+      <form method="POST" action="{{ url_for('dashboard.delete_resource', res_id=item.id) }}" onsubmit="return confirm('Delete resource {{ item.title }}?');">
+        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="glass-card" style="padding: 40px; text-align: center; grid-column: 1 / -1;">
+    <p style="color: var(--text-muted);">No resources found. Click "+ Create New Resource" to add one.</p>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Modal: Create Resource -->
+<div id="createResourceModal" class="modal-overlay">
+  <div class="modal-box">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h3 style="font-size: 1.25rem;">Create New Resource</h3>
+      <button type="button" onclick="closeModal('createResourceModal')" style="background:none; border:none; color:var(--text-muted); font-size:1.4rem; cursor:pointer;">&times;</button>
+    </div>
+
+    <form method="POST" action="{{ url_for('dashboard.create_resource') }}">
+      <div class="form-group">
+        <label class="form-label">Resource Title</label>
+        <input type="text" name="title" class="form-control" placeholder="e.g. Distributed Tracing Architecture" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select name="category" class="form-select">
+          <option value="Security">Security</option>
+          <option value="Engineering">Engineering</option>
+          <option value="Operations">Operations</option>
+          <option value="Compliance">Compliance</option>
+          <option value="General">General</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Description / Content</label>
+        <textarea name="description" class="form-control" rows="4" placeholder="Enter key details or documentation synopsis..."></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('createResourceModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Publish Resource</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Users Directory{% endblock %}
+{% block header_title %}User Management &amp; Role Assignments{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="padding: 24px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 14px;">
+    <div>
+      <h3 style="font-size: 1.25rem;">Active Accounts Directory</h3>
+      <p style="color: var(--text-muted); font-size: 0.875rem;">Manage user credentials, adjust permissions, and toggle access.</p>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <input type="text" id="tableSearchInput" class="form-control" placeholder="Search by name, email, or role..." style="width: 260px; padding: 8px 14px; font-size: 0.875rem;">
+      {% if current_user.is_admin() %}
+      <button class="btn btn-primary btn-sm" onclick="openModal('createUserModal')">
+        + Add New User
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="table-container">
+    <table class="modern-table">
+      <thead>
+        <tr>
+          <th>User Account</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Registered</th>
+          <th style="text-align: right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr class="table-row-item">
+          <td>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div class="user-avatar" style="width: 36px; height: 36px; font-size: 0.85rem;">
+                {{ u.username[:1].upper() }}
+              </div>
+              <div>
+                <div style="font-weight: 600; color: #fff;">
+                  {{ u.username }}
+                  {% if u.id == current_user.id %}
+                    <span style="font-size: 0.75rem; color: #38bdf8; margin-left: 4px;">(You)</span>
+                  {% endif %}
+                </div>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">{{ u.email }}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            {% if u.role.name == 'Admin' %}
+              <span class="badge badge-admin">Admin</span>
+            {% elif u.role.name == 'Manager' %}
+              <span class="badge badge-manager">Manager</span>
+            {% else %}
+              <span class="badge badge-user">User</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.is_active %}
+              <span class="badge badge-success">Active</span>
+            {% else %}
+              <span class="badge badge-danger">Deactivated</span>
+            {% endif %}
+          </td>
+          <td style="color: var(--text-muted); font-size: 0.85rem;">
+            {{ u.created_at.strftime('%b %d, %Y') if u.created_at else '-' }}
+          </td>
+          <td style="text-align: right;">
+            <div style="display: inline-flex; align-items: center; gap: 8px;">
+              <!-- Change Role (Admin Only) -->
+              {% if current_user.is_admin() %}
+              <button class="btn btn-sm btn-secondary" onclick="openRoleModal('{{ u.id }}', '{{ u.username }}', '{{ u.role.id if u.role else 0 }}')">
+                Role ⚙️
+              </button>
+              {% endif %}
+
+              <!-- Toggle Active Status -->
+              {% if u.id != current_user.id %}
+              <form method="POST" action="{{ url_for('dashboard.toggle_user_status', user_id=u.id) }}" style="display: inline;">
+                <button type="submit" class="btn btn-sm btn-secondary">
+                  {% if u.is_active %}Deactivate{% else %}Activate{% endif %}
+                </button>
+              </form>
+              {% endif %}
+
+              <!-- Delete User (Requires delete_users permission) -->
+              {% if current_user.has_permission('delete_users') and u.id != current_user.id %}
+              <form method="POST" action="{{ url_for('dashboard.delete_user', user_id=u.id) }}" style="display: inline;" onsubmit="return confirm('Permanently delete account {{ u.username }}?');">
+                <button type="submit" class="btn btn-sm btn-danger">
+                  Delete
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Create New User -->
+<div id="createUserModal" class="modal-overlay">
+  <div class="modal-box">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h3 style="font-size: 1.25rem;">Create User Account</h3>
+      <button type="button" onclick="closeModal('createUserModal')" style="background:none; border:none; color:var(--text-muted); font-size:1.4rem; cursor:pointer;">&times;</button>
+    </div>
+
+    <form method="POST" action="{{ url_for('dashboard.create_user') }}">
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" name="username" class="form-control" placeholder="newuser" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input type="email" name="email" class="form-control" placeholder="user@company.com" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Initial Password</label>
+        <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Assign Role</label>
+        <select name="role_id" class="form-select" required>
+          {% for r in roles %}
+            <option value="{{ r.id }}" {% if r.name == 'User' %}selected{% endif %}>{{ r.name }} ({{ r.description }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('createUserModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create User</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Update User Role -->
+<div id="updateRoleModal" class="modal-overlay">
+  <div class="modal-box">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h3 style="font-size: 1.25rem;">Adjust User Role</h3>
+      <button type="button" onclick="closeModal('updateRoleModal')" style="background:none; border:none; color:var(--text-muted); font-size:1.4rem; cursor:pointer;">&times;</button>
+    </div>
+
+    <form id="updateRoleForm" method="POST" action="">
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 16px;">
+        Modifying role access for: <strong id="modalUsername" style="color: #fff;"></strong>
+      </p>
+
+      <div class="form-group">
+        <label class="form-label">Assigned Role</label>
+        <select id="modalRoleId" name="role_id" class="form-select" required>
+          {% for r in roles %}
+            <option value="{{ r.id }}">{{ r.name }} - {{ r.description }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('updateRoleModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Update Role</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function openRoleModal(userId, username, roleId) {
+    document.getElementById('modalUsername').textContent = username;
+    document.getElementById('modalRoleId').value = roleId;
+    document.getElementById('updateRoleForm').action = '/dashboard/users/' + userId + '/update-role';
+    openModal('updateRoleModal');
+  }
+</script>
+{% endblock %}

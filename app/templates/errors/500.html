@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}500 Internal Server Error{% endblock %}
+{% block header_title %}500 Internal Error{% endblock %}
+
+{% block content %}
+<div style="max-width: 500px; margin: 60px auto; text-align: center;">
+  <div class="glass-card" style="padding: 40px; border: 1px solid rgba(244, 63, 94, 0.3);">
+    <div style="font-size: 3.5rem; margin-bottom: 16px;">⚠️</div>
+    <h2 style="font-size: 1.75rem; color: #fda4af; margin-bottom: 12px;">Internal Server Error</h2>
+    <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px;">
+      An unexpected condition occurred while processing your request. The incident has been recorded.
+    </p>
+    <a href="{{ url_for('dashboard.index') }}" class="btn btn-secondary">
+      &larr; Return to Dashboard
+    </a>
+  </div>
+</div>
+{% endblock %}

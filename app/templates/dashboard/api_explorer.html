@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}REST API v1 Interactive Explorer{% endblock %}
+{% block header_title %}Interactive REST API v1 Console{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="padding: 24px; margin-bottom: 24px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+    <div>
+      <h3 style="font-size: 1.25rem;">⚡ API Endpoint Console</h3>
+      <p style="color: var(--text-muted); font-size: 0.875rem;">
+        Execute live HTTP requests against the backend REST API. Authenticated as <strong style="color: #fff;">{{ current_user.username }} ({{ current_user.role.name if current_user.role }})</strong>.
+      </p>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <span class="badge badge-success">Base: /api/v1</span>
+      <span class="badge badge-manager">Content-Type: application/json</span>
+    </div>
+  </div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px;">
+
+  <!-- Endpoint 1: Health Check -->
+  <div class="api-endpoint-card">
+    <div class="api-header" onclick="toggleApiAccordion('body-health')">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span class="api-method method-get">GET</span>
+        <span class="api-path">/api/v1/health</span>
+        <span style="color: var(--text-muted); font-size: 0.85rem;">System health check &amp; PostgreSQL connectivity</span>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); executeApiCall('/api/v1/health', 'GET', null, 'resp-health'); document.getElementById('body-health').classList.add('open');">
+        Execute 🚀
+      </button>
+    </div>
+    <div id="body-health" class="api-body">
+      <div style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-dim);">Response Payload:</div>
+      <div id="resp-health">
+        <pre class="code-response"><code>Click "Execute 🚀" to run live request</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Endpoint 2: Current User Profile (Me) -->
+  <div class="api-endpoint-card">
+    <div class="api-header" onclick="toggleApiAccordion('body-me')">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span class="api-method method-get">GET</span>
+        <span class="api-path">/api/v1/auth/me</span>
+        <span style="color: var(--text-muted); font-size: 0.85rem;">Retrieve authenticated identity &amp; granted permissions</span>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); executeApiCall('/api/v1/auth/me', 'GET', null, 'resp-me'); document.getElementById('body-me').classList.add('open');">
+        Execute 🚀
+      </button>
+    </div>
+    <div id="body-me" class="api-body">
+      <div style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-dim);">Response Payload:</div>
+      <div id="resp-me">
+        <pre class="code-response"><code>Click "Execute 🚀" to run live request</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Endpoint 3: Dashboard Stats -->
+  <div class="api-endpoint-card">
+    <div class="api-header" onclick="toggleApiAccordion('body-stats')">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span class="api-method method-get">GET</span>
+        <span class="api-path">/api/v1/stats</span>
+        <span style="color: var(--text-muted); font-size: 0.85rem;">Aggregated system metrics &amp; role distribution (Requires view_dashboard)</span>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); executeApiCall('/api/v1/stats', 'GET', null, 'resp-stats'); document.getElementById('body-stats').classList.add('open');">
+        Execute 🚀
+      </button>
+    </div>
+    <div id="body-stats" class="api-body">
+      <div style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-dim);">Response Payload:</div>
+      <div id="resp-stats">
+        <pre class="code-response"><code>Click "Execute 🚀" to run live request</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Endpoint 4: Get All Users -->
+  <div class="api-endpoint-card">
+    <div class="api-header" onclick="toggleApiAccordion('body-users')">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span class="api-method method-get">GET</span>
+        <span class="api-path">/api/v1/users</span>
+        <span style="color: var(--text-muted); font-size: 0.85rem;">List all system accounts (Requires manage_users)</span>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); executeApiCall('/api/v1/users', 'GET', null, 'resp-users'); document.getElementById('body-users').classList.add('open');">
+        Execute 🚀
+      </button>
+    </div>
+    <div id="body-users" class="api-body">
+      <div style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-dim);">Response Payload:</div>
+      <div id="resp-users">
+        <pre class="code-response"><code>Click "Execute 🚀" to run live request</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Endpoint 5: Get Resources -->
+  <div class="api-endpoint-card">
+    <div class="api-header" onclick="toggleApiAccordion('body-resources')">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span class="api-method method-get">GET</span>
+        <span class="api-path">/api/v1/resources</span>
+        <span style="color: var(--text-muted); font-size: 0.85rem;">Fetch catalog entries and documentation</span>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); executeApiCall('/api/v1/resources', 'GET', null, 'resp-resources'); document.getElementById('body-resources').classList.add('open');">
+        Execute 🚀
+      </button>
+    </div>
+    <div id="body-resources" class="api-body">
+      <div style="margin-bottom: 12px; font-size: 0.85rem; color: var(--text-dim);">Response Payload:</div>
+      <div id="resp-resources">
+        <pre class="code-response"><code>Click "Execute 🚀" to run live request</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Endpoint 6: Create Resource (POST) -->
+  <div class="api-endpoint-card">
+    <div class="api-header" onclick="toggleApiAccordion('body-post-resource')">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span class="api-method method-post">POST</span>
+        <span class="api-path">/api/v1/resources</span>
+        <span style="color: var(--text-muted); font-size: 0.85rem;">Create a new governed resource (Requires create_resources)</span>
+      </div>
+      <button class="btn btn-sm btn-secondary" onclick="toggleApiAccordion('body-post-resource')">
+        Configure &amp; Send ⚙️
+      </button>
+    </div>
+    <div id="body-post-resource" class="api-body">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label class="form-label">JSON Payload:</label>
+        <textarea id="postResourcePayload" class="form-control" rows="4" style="font-family: monospace; font-size: 0.85rem;">{
+  "title": "API Token Rotation Policy 2026",
+  "category": "Security",
+  "description": "Enforcing mandatory 90-day secret rotation across cloud services.",
+  "status": "Published"
+}</textarea>
+      </div>
+      <button class="btn btn-sm btn-primary" onclick="try { const p = JSON.parse(document.getElementById('postResourcePayload').value); executeApiCall('/api/v1/resources', 'POST', p, 'resp-post-resource'); } catch(e) { alert('Invalid JSON: ' + e.message); }">
+        Submit POST Request
+      </button>
+      <div style="margin-top: 16px; font-size: 0.85rem; color: var(--text-dim);">Response Payload:</div>
+      <div id="resp-post-resource" style="margin-top: 6px;">
+        <pre class="code-response"><code>Response will appear here</code></pre>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

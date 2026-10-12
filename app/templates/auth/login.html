@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In | Enterprise RBAC{% endblock %}
+
+{% block public_content %}
+<div style="max-width: 440px; margin: 40px auto;">
+  <div class="glass-card" style="padding: 36px; border: 1px solid var(--border-highlight);">
+    <div style="text-align: center; margin-bottom: 28px;">
+      <div class="brand-icon" style="margin: 0 auto 16px; width: 48px; height: 48px; font-size: 1.4rem;">🔐</div>
+      <h2 style="font-size: 1.75rem;">Welcome Back</h2>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">Sign in to access your role-based dashboard</p>
+    </div>
+
+    <!-- Quick Auto-Fill Persona Buttons -->
+    <div style="margin-bottom: 24px; background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: var(--radius-md); border: 1px dashed rgba(255, 255, 255, 0.1);">
+      <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-dim); font-weight: 700; margin-bottom: 8px; text-align: center;">
+        Quick 1-Click Persona Fill
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: center;">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="fillCredentials('admin@example.com', 'Admin@123')">
+          👑 Admin
+        </button>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="fillCredentials('manager@example.com', 'Manager@123')">
+          ⚡ Manager
+        </button>
+        <button type="button" class="btn btn-sm btn-secondary" onclick="fillCredentials('user@example.com', 'User@123')">
+          👤 User
+        </button>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('auth.login') }}">
+      <input type="hidden" name="next" value="{{ request.query_params.get('next', '') }}">
+      <div class="form-group">
+        <label class="form-label" for="identifier">Email or Username</label>
+        <input type="text" id="identifier" name="identifier" class="form-control" placeholder="e.g. admin@example.com" required autofocus>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
+      </div>
+
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-muted); cursor: pointer;">
+          <input type="checkbox" name="remember" style="accent-color: var(--primary);">
+          <span>Remember me</span>
+        </label>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px;">
+        Sign In to Platform &rarr;
+      </button>
+    </form>
+
+    <div style="text-align: center; margin-top: 24px; font-size: 0.875rem; color: var(--text-muted);">
+      Don't have an account? 
+      <a href="{{ url_for('auth.register') }}" style="font-weight: 600;">Register here</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function fillCredentials(id, pwd) {
+    document.getElementById('identifier').value = id;
+    document.getElementById('password').value = pwd;
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Roles &amp; Permission Matrix{% endblock %}
+{% block header_title %}Role Hierarchy &amp; Permission Matrix{% endblock %}
+
+{% block content %}
+<div style="display: flex; flex-direction: column; gap: 30px;">
+  <!-- Role Cards Grid -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+    {% for role in roles %}
+    <div class="glass-card" style="padding: 24px; position: relative;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+        <div>
+          <h3 style="font-size: 1.3rem;">{{ role.name }}</h3>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">{{ role.description }}</p>
+        </div>
+        {% if role.name == 'Admin' %}
+          <span class="badge badge-admin">Master</span>
+        {% elif role.name == 'Manager' %}
+          <span class="badge badge-manager">Manager</span>
+        {% else %}
+          <span class="badge badge-user">Default</span>
+        {% endif %}
+      </div>
+
+      <div style="margin: 16px 0; font-size: 0.85rem; color: var(--text-dim);">
+        Assigned Users: <strong style="color: #fff;">{{ role.users|length }}</strong> accounts
+      </div>
+
+      <div>
+        <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-dim); font-weight: 700; margin-bottom: 8px;">
+          Granted Permissions ({{ role.permissions|length }})
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          {% for p in role.permissions %}
+            <span class="badge badge-manager" style="background: rgba(99, 102, 241, 0.15); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.25);">
+              ✓ {{ p.name }}
+            </span>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Detailed Permission Matrix Table -->
+  <div class="glass-card" style="padding: 24px;">
+    <div style="margin-bottom: 20px;">
+      <h3 style="font-size: 1.25rem;">Interactive Permission Matrix</h3>
+      <p style="color: var(--text-muted); font-size: 0.875rem;">Cross-reference permissions across all defined roles.</p>
+    </div>
+
+    <div class="table-container">
+      <table class="modern-table">
+        <thead>
+          <tr>
+            <th style="width: 250px;">Permission Name</th>
+            <th>Description</th>
+            {% for r in roles %}
+              <th style="text-align: center;">{{ r.name }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for perm in permissions %}
+          <tr>
+            <td style="font-weight: 600; font-family: monospace; color: #a5b4fc;">
+              {{ perm.name }}
+            </td>
+            <td style="color: var(--text-muted); font-size: 0.85rem;">
+              {{ perm.description }}
+            </td>
+            {% for r in roles %}
+              <td style="text-align: center;">
+                {% if r.has_permission(perm.name) %}
+                  <span style="display: inline-flex; width: 24px; height: 24px; border-radius: 50%; background: rgba(16, 185, 129, 0.2); color: #34d399; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700;">✓</span>
+                {% else %}
+                  <span style="display: inline-flex; width: 24px; height: 24px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); color: var(--text-dim); align-items: center; justify-content: center; font-size: 0.75rem;">—</span>
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

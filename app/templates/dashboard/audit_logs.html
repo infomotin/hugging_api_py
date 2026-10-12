@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Security Audit Trail{% endblock %}
+{% block header_title %}System Audit &amp; Event Logs{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="padding: 24px;">
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+    <div>
+      <h3 style="font-size: 1.25rem;">Security &amp; Action Timeline</h3>
+      <p style="color: var(--text-muted); font-size: 0.875rem;">Immutable activity log recording user authentication, role changes, and API actions.</p>
+    </div>
+    <span class="badge badge-manager">Real-time Telemetry</span>
+  </div>
+
+  <div class="table-container">
+    <table class="modern-table">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Actor / User</th>
+          <th>Action</th>
+          <th>Details</th>
+          <th>Client IP</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td style="font-family: monospace; font-size: 0.8rem; color: var(--text-dim); white-space: nowrap;">
+            {{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') if log.timestamp }}
+          </td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="user-avatar" style="width: 26px; height: 26px; font-size: 0.75rem;">
+                {{ (log.username or 'S')[:1].upper() }}
+              </div>
+              <strong style="color: #fff; font-size: 0.85rem;">{{ log.username or 'System' }}</strong>
+            </div>
+          </td>
+          <td>
+            {% if 'AUTH' in log.action %}
+              <span class="badge badge-admin" style="font-size: 0.7rem;">{{ log.action }}</span>
+            {% elif 'ROLE' in log.action or 'ADMIN' in log.action %}
+              <span class="badge badge-manager" style="font-size: 0.7rem;">{{ log.action }}</span>
+            {% elif 'DELETE' in log.action %}
+              <span class="badge badge-danger" style="font-size: 0.7rem;">{{ log.action }}</span>
+            {% else %}
+              <span class="badge badge-success" style="font-size: 0.7rem;">{{ log.action }}</span>
+            {% endif %}
+          </td>
+          <td style="color: var(--text-muted); font-size: 0.85rem;">
+            {{ log.details }}
+          </td>
+          <td style="font-family: monospace; font-size: 0.8rem; color: var(--text-dim);">
+            {{ log.ip_address or '127.0.0.1' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Enterprise RBAC Platform{% endblock %} | Flask</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+  {% if current_user.is_authenticated %}
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="app-sidebar">
+      <div class="sidebar-header">
+        <div class="brand-icon">⚡</div>
+        <div>
+          <div class="brand-title">Enterprise RBAC</div>
+          <div class="brand-tag">Flask • Postgres • API</div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        {% if current_user.has_permission('view_dashboard') %}
+        <span class="nav-section-label">Analytics</span>
+        <a href="{{ url_for('dashboard.index') }}" class="nav-link {% if request.url.path == '/dashboard/' %}active{% endif %}">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </a>
+        {% endif %}
+
+        <span class="nav-section-label">Management</span>
+        {% if current_user.has_permission('manage_users') %}
+        <a href="{{ url_for('dashboard.users') }}" class="nav-link {% if request.url.path == '/dashboard/users' %}active{% endif %}">
+          <span class="nav-icon">👥</span>
+          <span>Users Directory</span>
+        </a>
+        <a href="{{ url_for('dashboard.roles') }}" class="nav-link {% if request.url.path == '/dashboard/roles' %}active{% endif %}">
+          <span class="nav-icon">🛡️</span>
+          <span>Roles & Matrix</span>
+        </a>
+        {% endif %}
+
+        <a href="{{ url_for('dashboard.resources') }}" class="nav-link {% if request.url.path == '/dashboard/resources' %}active{% endif %}">
+          <span class="nav-icon">📁</span>
+          <span>Resources & Posts</span>
+        </a>
+
+        {% if current_user.has_permission('view_audit_logs') %}
+        <a href="{{ url_for('dashboard.audit_logs') }}" class="nav-link {% if request.url.path == '/dashboard/audit-logs' %}active{% endif %}">
+          <span class="nav-icon">📜</span>
+          <span>Audit Logs</span>
+        </a>
+        {% endif %}
+
+        <span class="nav-section-label">Developer</span>
+        <a href="{{ url_for('dashboard.api_explorer') }}" class="nav-link {% if request.url.path == '/dashboard/api-explorer' %}active{% endif %}">
+          <span class="nav-icon">🔌</span>
+          <span>REST API Explorer</span>
+        </a>
+        <a href="{{ url_for('dashboard.ai_models') }}" class="nav-link {% if request.url.path == '/dashboard/ai-models' %}active{% endif %}">
+          <span class="nav-icon">🤗</span>
+          <span>Hugging Face Hub</span>
+        </a>
+
+        <span class="nav-section-label">Account</span>
+        <a href="{{ url_for('auth.profile') }}" class="nav-link {% if request.url.path == '/auth/profile' %}active{% endif %}">
+          <span class="nav-icon">⚙️</span>
+          <span>Settings</span>
+        </a>
+        <a href="{{ url_for('auth.logout') }}" class="nav-link" style="color: #fda4af;">
+          <span class="nav-icon">🚪</span>
+          <span>Sign Out</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-user">
+        <div class="user-info">
+          <div class="user-avatar">{{ current_user.username[:1].upper() }}</div>
+          <div>
+            <div class="user-name">{{ current_user.username }}</div>
+            <div class="user-role-badge">
+              {% if current_user.role.name == 'Admin' %}
+                <span class="badge badge-admin">Admin</span>
+              {% elif current_user.role.name == 'Manager' %}
+                <span class="badge badge-manager">Manager</span>
+              {% else %}
+                <span class="badge badge-user">User</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Wrapper -->
+    <div class="app-main">
+      <header class="top-bar">
+        <div style="font-weight: 600; font-size: 1.1rem; color: #fff;">
+          {% block header_title %}Overview{% endblock %}
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <a href="{{ url_for('dashboard.api_explorer') }}" class="btn btn-sm btn-secondary">
+            ⚡ API v1 Ready
+          </a>
+          <span class="badge badge-success">● DB Online</span>
+        </div>
+      </header>
+
+      <main class="page-content">
+        <!-- Flash notifications -->
+        <div class="flash-container">
+          {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+              {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">
+                  <span>{{ message }}</span>
+                  <button type="button" onclick="this.parentElement.remove()" style="background:none; border:none; color:inherit; cursor:pointer; font-size:1.1rem;">&times;</button>
+                </div>
+              {% endfor %}
+            {% endif %}
+          {% endwith %}
+        </div>
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+  {% else %}
+  <!-- Public Layout (Navbar + Content) -->
+  <header style="padding: 20px 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-subtle); background: rgba(14,20,36,0.6); backdrop-filter: blur(12px);">
+    <a href="{{ url_for('index') }}" style="display: flex; align-items: center; gap: 10px; color: #fff; font-weight: 700; font-size: 1.2rem;">
+      <div class="brand-icon" style="width: 36px; height: 36px; font-size: 1rem;">⚡</div>
+      <span>Enterprise RBAC</span>
+    </a>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <a href="{{ url_for('auth.login') }}" class="btn btn-secondary btn-sm">Sign In</a>
+      <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-sm">Get Started</a>
+    </div>
+  </header>
+
+  <main style="padding: 24px;">
+    <div class="flash-container" style="max-width: 800px; margin: 0 auto 20px;">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">
+              <span>{{ message }}</span>
+              <button type="button" onclick="this.parentElement.remove()" style="background:none; border:none; color:inherit; cursor:pointer; font-size:1.1rem;">&times;</button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+    </div>
+
+    {% block public_content %}{% endblock %}
+  </main>
+  {% endif %}
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Modern Role-Based Access Control Platform{% endblock %}
+
+{% block public_content %}
+<section class="hero-section">
+  <div class="hero-pill">
+    <span>✨ Enterprise Architecture</span> &bull; <span>Python 3.13 + Flask + PostgreSQL</span>
+  </div>
+
+  <h1 class="hero-title">
+    Fine-Grained <span class="gradient-text">Role Permissions</span><br>
+    &amp; Real-Time API Dashboard
+  </h1>
+
+  <p class="hero-desc">
+    A production-grade Python web application featuring dynamic Role-Based Access Control (RBAC),
+    RESTful API endpoints, security audit logging, and a glassmorphic administrative interface.
+  </p>
+
+  <div class="hero-actions">
+    <a href="{{ url_for('auth.login') }}" class="btn btn-primary" style="padding: 14px 28px; font-size: 1.05rem;">
+      🚀 Launch Dashboard Demo
+    </a>
+    <a href="{{ url_for('auth.register') }}" class="btn btn-secondary" style="padding: 14px 28px; font-size: 1.05rem;">
+      Create New Account
+    </a>
+  </div>
+</section>
+
+<!-- Demo Credentials Highlight Card -->
+<div style="max-width: 900px; margin: 0 auto 50px;">
+  <div class="glass-card" style="padding: 28px; border: 1px solid rgba(99, 102, 241, 0.3); background: rgba(17, 24, 39, 0.9);">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+      <div>
+        <h3 style="font-size: 1.25rem;">⚡ Pre-Configured Test Personas</h3>
+        <p style="color: var(--text-muted); font-size: 0.875rem;">One-click login accounts are seeded and ready for instantaneous testing.</p>
+      </div>
+      <span class="badge badge-admin">RBAC Enabled</span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+      <!-- Admin Card -->
+      <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 18px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <strong style="color: #c084fc;">Super Admin</strong>
+          <span class="badge badge-admin">Full Access</span>
+        </div>
+        <div style="font-size: 0.85rem; color: #94a3b8; font-family: monospace; line-height: 1.6;">
+          Email: <span style="color: #fff;">admin@example.com</span><br>
+          Pass: <span style="color: #fff;">Admin@123</span>
+        </div>
+        <div style="margin-top: 10px; font-size: 0.75rem; color: #a5b4fc;">
+          Full user management, role mapping & audit trail
+        </div>
+      </div>
+
+      <!-- Manager Card -->
+      <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 18px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <strong style="color: #38bdf8;">Operations Manager</strong>
+          <span class="badge badge-manager">Manager</span>
+        </div>
+        <div style="font-size: 0.85rem; color: #94a3b8; font-family: monospace; line-height: 1.6;">
+          Email: <span style="color: #fff;">manager@example.com</span><br>
+          Pass: <span style="color: #fff;">Manager@123</span>
+        </div>
+        <div style="margin-top: 10px; font-size: 0.75rem; color: #38bdf8;">
+          Dashboard metrics, resource publishing, user audit
+        </div>
+      </div>
+
+      <!-- Standard User Card -->
+      <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 18px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <strong style="color: #cbd5e1;">Standard Member</strong>
+          <span class="badge badge-user">User</span>
+        </div>
+        <div style="font-size: 0.85rem; color: #94a3b8; font-family: monospace; line-height: 1.6;">
+          Email: <span style="color: #fff;">user@example.com</span><br>
+          Pass: <span style="color: #fff;">User@123</span>
+        </div>
+        <div style="margin-top: 10px; font-size: 0.75rem; color: #cbd5e1;">
+          Read catalog, create own items, personal profile
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Architecture & Feature Highlights -->
+<div style="max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; padding-bottom: 60px;">
+  <div class="glass-card" style="padding: 26px;">
+    <div class="stat-icon-wrapper icon-purple" style="margin-bottom: 16px;">🛡️</div>
+    <h3 style="margin-bottom: 8px;">Hierarchical RBAC</h3>
+    <p style="color: var(--text-muted); font-size: 0.9rem;">
+      Custom decorators <code>@role_required</code> and <code>@permission_required</code> protect both web routes and JSON endpoints.
+    </p>
+  </div>
+
+  <div class="glass-card" style="padding: 26px;">
+    <div class="stat-icon-wrapper icon-cyan" style="margin-bottom: 16px;">⚡</div>
+    <h3 style="margin-bottom: 8px;">First RESTful API v1</h3>
+    <p style="color: var(--text-muted); font-size: 0.9rem;">
+      Structured JSON endpoints with interactive in-browser API explorer for testing authentication, users, and resources.
+    </p>
+  </div>
+
+  <div class="glass-card" style="padding: 26px;">
+    <div class="stat-icon-wrapper icon-emerald" style="margin-bottom: 16px;">🐘</div>
+    <h3 style="margin-bottom: 8px;">PostgreSQL Engine</h3>
+    <p style="color: var(--text-muted); font-size: 0.9rem;">
+      Connected with SQLAlchemy ORM and Psycopg2, offering high-throughput relational data consistency and auto-migration fallback.
+    </p>
+  </div>
+</div>
+{% endblock %}
