@@ -19,7 +19,7 @@ class StartFineTuningRequest(BaseModel):
     input_column: Optional[str] = Field("data_schema", description="Input feature column")
     target_column: Optional[str] = Field("expected_output", description="Target label/output column")
     prompt_template: Optional[str] = Field("[EXTRACT SCHEMA]: {input} -> [TARGET]: {target}")
-    method: Optional[str] = Field("lora", description="'lora' or 'full'")
+    method: Optional[str] = Field("lora", description="'lora', 'qlora', 'prefix', or 'full'")
     learning_rate: Optional[float] = Field(5e-5, description="Initial learning rate")
     epochs: Optional[int] = Field(3, ge=1, le=20, description="Number of training epochs")
     batch_size: Optional[int] = Field(2, ge=1, le=64, description="Training batch size")
@@ -27,13 +27,51 @@ class StartFineTuningRequest(BaseModel):
     lora_alpha: Optional[int] = Field(16, ge=4, le=128, description="LoRA scaling factor")
     lora_dropout: Optional[float] = Field(0.05, ge=0.0, le=0.5, description="LoRA dropout rate")
     optimizer_name: Optional[str] = Field("AdamW")
-    scheduler_name: Optional[str] = Field("linear")
+    scheduler_name: Optional[str] = Field("cosine")
     device: Optional[str] = Field("cpu")
+    warmup_ratio: Optional[float] = Field(0.1, ge=0.0, le=0.5)
+    weight_decay: Optional[float] = Field(0.01, ge=0.0, le=0.1)
+    max_grad_norm: Optional[float] = Field(1.0, ge=0.1, le=10.0)
+    eval_split: Optional[float] = Field(0.15, ge=0.05, le=0.4)
+
+class CompareInferenceRequest(BaseModel):
+    base_model_slug: str = Field(..., description="Baseline model name (e.g. gpt2 or prajjwal1--bert-tiny)")
+    finetuned_model_slug: str = Field(..., description="Fine-tuned model name (e.g. finetuned-extractbench-v1)")
+    prompt: str = Field(..., description="Prompt to evaluate side-by-side")
+    max_tokens: Optional[int] = Field(120, ge=10, le=512)
+    temperature: Optional[float] = Field(0.7, ge=0.0, le=2.0)
 
 @router.get("/theoretical-reference")
 def get_theoretical_reference(current_user: User = Depends(get_current_user)):
-    """Returns mathematical and theoretical foundation notes for LoRA, Full Tuning, and optimizers."""
+    """Returns mathematical formulations, LaTeX representations, and theoretical foundation notes."""
     return finetune_engine.get_theoretical_reference()
+
+@router.get("/evaluation/{model_slug}")
+def get_model_evaluation(
+    model_slug: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Fetch rigorous Before vs After mathematical evaluation metrics for a fine-tuned model."""
+    eval_data = finetune_engine.get_model_evaluation(model_slug)
+    return {"evaluation": eval_data}
+
+@router.post("/compare-inference")
+def compare_model_inference(
+    payload: CompareInferenceRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Run live side-by-side prompt execution comparing base model against fine-tuned model."""
+    try:
+        comparison = finetune_engine.compare_inference(
+            base_model_slug=payload.base_model_slug,
+            finetuned_model_slug=payload.finetuned_model_slug,
+            prompt=payload.prompt,
+            max_tokens=payload.max_tokens or 120,
+            temperature=payload.temperature or 0.7
+        )
+        return {"success": True, "comparison": comparison}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/datasets/search")
 def search_hf_datasets(
@@ -80,8 +118,7 @@ def start_fine_tuning_job(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Launch an asynchronous background fine-tuning job with live monitoring telemetry."""
-    # Verify base model exists in downloaded catalog
+    """Launch an asynchronous background fine-tuning job with live monitoring telemetry and mathematical tracking."""
     local_slugs = [m["slug"] for m in model_manager.list_local_models()]
     if payload.base_model_slug not in local_slugs and model_manager.clean_model_slug(payload.base_model_slug) not in local_slugs:
         raise HTTPException(
@@ -105,8 +142,12 @@ def start_fine_tuning_job(
         lora_alpha=payload.lora_alpha or 16,
         lora_dropout=payload.lora_dropout or 0.05,
         optimizer_name=payload.optimizer_name or "AdamW",
-        scheduler_name=payload.scheduler_name or "linear",
-        device=payload.device or "cpu"
+        scheduler_name=payload.scheduler_name or "cosine",
+        device=payload.device or "cpu",
+        warmup_ratio=payload.warmup_ratio or 0.1,
+        weight_decay=payload.weight_decay or 0.01,
+        max_grad_norm=payload.max_grad_norm or 1.0,
+        eval_split=payload.eval_split or 0.15
     )
 
     log = AuditLog(
@@ -132,6 +173,14 @@ def get_job_progress(job_id: str, current_user: User = Depends(get_current_user)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+@router.get("/jobs/{job_id}/evaluation")
+def get_job_evaluation(job_id: str, current_user: User = Depends(get_current_user)):
+    """Fetch before-vs-after evaluation report for a completed job."""
+    job = finetune_engine.get_job_status(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"evaluation": job.get("evaluation_comparison")}
 
 @router.post("/jobs/{job_id}/stop")
 def stop_fine_tuning_job(job_id: str, current_user: User = Depends(get_current_user)):

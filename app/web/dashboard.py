@@ -573,9 +573,15 @@ def fine_tuning_studio_page(
     theoretical_ref = finetune_engine.get_theoretical_reference()
     jobs = finetune_engine.list_jobs()
 
+    finetuned_models = [m for m in local_models if "finetuned" in m["slug"].lower() or "ft" in m["slug"].lower()]
+    default_ft_slug = finetuned_models[0]["slug"] if finetuned_models else (local_models[0]["slug"] if local_models else "finetuned-extractbench-v1")
+    initial_eval = finetune_engine.get_model_evaluation(default_ft_slug)
+
     return render_template("dashboard/fine_tuning.html", request, {
         "current_user": current_user,
         "local_models": local_models,
+        "finetuned_models": finetuned_models,
+        "initial_eval": initial_eval,
         "theoretical_ref": theoretical_ref,
         "popular_datasets": POPULAR_HF_DATASETS,
         "recent_jobs": jobs
