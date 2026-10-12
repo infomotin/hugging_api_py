@@ -1,0 +1,13 @@
+{
+  "job_id": "ft-08b716a7",
+  "base_model": "prajjwal1--bert-tiny",
+  "dataset_id": "llamaindex/ExtractBench",
+  "method": "lora",
+  "epochs": 2,
+  "final_train_loss": 0.1687,
+  "final_val_loss": 0.2022,
+  "trainable_parameters": 38912,
+  "total_parameters": 4424832,
+  "trainable_percentage": 0.88,
+  "completed_at": "2026-10-12 13:50:57"
+}

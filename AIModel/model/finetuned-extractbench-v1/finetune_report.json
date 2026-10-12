@@ -1,0 +1,13 @@
+{
+  "job_id": "ft-26e8c936",
+  "base_model": "finetuned-extractbench-bert",
+  "dataset_id": "llamaindex/ExtractBench",
+  "method": "lora",
+  "epochs": 3,
+  "final_train_loss": 0.1604,
+  "final_val_loss": 0.1932,
+  "trainable_parameters": 38912,
+  "total_parameters": 4424832,
+  "trainable_percentage": 0.88,
+  "completed_at": "2026-10-12 13:53:15"
+}
