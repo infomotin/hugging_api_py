@@ -1,11 +1,11 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Request, Form, status
+from fastapi import APIRouter, Depends, Request, Form, status, File, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core.security import hash_password
 from core.dependencies import get_current_user_optional, get_current_user
-from models import User, Role, Permission, Resource, AuditLog
+from models import User, Role, Permission, Resource, AuditLog, ApiKey
 from app.web.templates import render_template
 
 router = APIRouter(tags=["Web Dashboard"])
@@ -362,16 +362,51 @@ def update_hf_token_form(
 def download_model_form(
     request: Request,
     model_id: str = Form(...),
+    filename: Optional[str] = Form(None),
+    is_gguf: Optional[bool] = Form(False),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     from AIModel.model_loader import model_manager
-    res = model_manager.download_model(model_id=model_id)
+    res = model_manager.download_model(
+        model_id=model_id,
+        filename=filename,
+        is_gguf=is_gguf
+    )
 
     log = AuditLog(
         user_id=current_user.id,
         username=current_user.username,
         action="HF_MODEL_DOWNLOADED" if res.get("success") else "HF_DOWNLOAD_FAILED",
+        details=res.get("message"),
+        ip_address=request.client.host if request.client else "127.0.0.1"
+    )
+    db.add(log)
+    db.commit()
+
+    return RedirectResponse(url="/dashboard/ai-models", status_code=status.HTTP_302_FOUND)
+
+
+@router.post("/dashboard/ai-models/upload")
+async def upload_model_form(
+    request: Request,
+    model_file: UploadFile = File(...),
+    custom_name: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from AIModel.model_loader import model_manager
+    content = await model_file.read()
+    res = model_manager.save_uploaded_model(
+        file_name=model_file.filename,
+        file_bytes=content,
+        custom_name=custom_name
+    )
+
+    log = AuditLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="LOCAL_MODEL_UPLOADED" if res.get("success") else "UPLOAD_FAILED",
         details=res.get("message"),
         ip_address=request.client.host if request.client else "127.0.0.1"
     )
@@ -402,3 +437,144 @@ def delete_local_model_form(
         db.commit()
 
     return RedirectResponse(url="/dashboard/ai-models", status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/dashboard/chat")
+def chat_studio_page(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from AIModel.model_loader import model_manager
+    from AIModel.chat_engine import chat_engine
+
+    local_models = model_manager.list_local_models()
+    engine_status = chat_engine.get_status()
+    api_keys = db.query(ApiKey).filter(ApiKey.user_id == current_user.id, ApiKey.is_active == True).all()
+
+    return render_template("dashboard/chat.html", request, {
+        "current_user": current_user,
+        "local_models": local_models,
+        "engine_status": engine_status,
+        "api_keys": api_keys
+    })
+
+
+@router.post("/dashboard/chat/active-model")
+def set_active_chat_model_web(
+    request: Request,
+    model_slug: str = Form(...),
+    device_mode: str = Form("cpu"),
+    gpu_layers: int = Form(0),
+    vram_mb: int = Form(0),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    from AIModel.chat_engine import chat_engine
+    chat_engine.set_active_model(
+        slug=model_slug,
+        device_mode=device_mode,
+        gpu_layers=gpu_layers,
+        vram_mb=vram_mb
+    )
+
+    log = AuditLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="ACTIVE_MODEL_UPDATED",
+        details=f"Active model switched to {model_slug} on {device_mode.upper()} (GPU layers: {gpu_layers}, V-RAM: {vram_mb}MB)",
+        ip_address=request.client.host if request.client else "127.0.0.1"
+    )
+    db.add(log)
+    db.commit()
+
+    return RedirectResponse(url="/dashboard/chat?updated=1", status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/dashboard/api-keys")
+def api_keys_page(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    keys = db.query(ApiKey).filter(ApiKey.user_id == current_user.id).order_by(ApiKey.created_at.desc()).all()
+    return render_template("dashboard/api_keys.html", request, {
+        "current_user": current_user,
+        "api_keys": keys,
+        "new_token": request.query_params.get("new_token")
+    })
+
+
+@router.post("/dashboard/api-keys/create")
+def create_api_key_web(
+    request: Request,
+    name: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    raw_token, key_obj = ApiKey.generate_key_pair(
+        name=name.strip(),
+        user_id=current_user.id
+    )
+    db.add(key_obj)
+    db.flush()
+
+    log = AuditLog(
+        user_id=current_user.id,
+        username=current_user.username,
+        action="API_KEY_CREATED",
+        details=f"Generated key '{name}' ({key_obj.key_prefix})",
+        ip_address=request.client.host if request.client else "127.0.0.1"
+    )
+    db.add(log)
+    db.commit()
+
+    return RedirectResponse(url=f"/dashboard/api-keys?new_token={raw_token}", status_code=status.HTTP_302_FOUND)
+
+
+@router.post("/dashboard/api-keys/{key_id}/delete")
+def delete_api_key_web(
+    key_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    key_obj = db.query(ApiKey).filter(ApiKey.id == key_id).first()
+    if key_obj and (key_obj.user_id == current_user.id or current_user.is_admin()):
+        name = key_obj.name
+        prefix = key_obj.key_prefix
+        db.delete(key_obj)
+
+        log = AuditLog(
+            user_id=current_user.id,
+            username=current_user.username,
+            action="API_KEY_REVOKED",
+            details=f"Revoked API key '{name}' ({prefix})",
+            ip_address=request.client.host if request.client else "127.0.0.1"
+        )
+        db.add(log)
+        db.commit()
+
+    return RedirectResponse(url="/dashboard/api-keys", status_code=status.HTTP_302_FOUND)
+
+
+@router.get("/dashboard/fine-tuning")
+def fine_tuning_studio_page(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    from AIModel.model_loader import model_manager
+    from AIModel.finetune_engine import finetune_engine
+    from AIModel.dataset_hub import POPULAR_HF_DATASETS
+
+    local_models = model_manager.list_local_models()
+    theoretical_ref = finetune_engine.get_theoretical_reference()
+    jobs = finetune_engine.list_jobs()
+
+    return render_template("dashboard/fine_tuning.html", request, {
+        "current_user": current_user,
+        "local_models": local_models,
+        "theoretical_ref": theoretical_ref,
+        "popular_datasets": POPULAR_HF_DATASETS,
+        "recent_jobs": jobs
+    })

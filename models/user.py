@@ -67,6 +67,14 @@ class User(Base):
     resources = relationship('Resource', back_populates='author', cascade="all, delete-orphan")
     audit_logs = relationship('AuditLog', back_populates='user')
 
+    @property
+    def is_authenticated(self) -> bool:
+        return True
+
+    @property
+    def is_anonymous(self) -> bool:
+        return False
+
     def has_permission(self, perm_name: str) -> bool:
         if not self.role:
             return False

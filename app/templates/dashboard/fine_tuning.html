@@ -1,0 +1,816 @@
+{% extends "base.html" %}
+
+{% block title %}Model Fine-Tuning Studio — Enterprise AI{% endblock %}
+{% block header_title %}Model Fine-Tuning & PEFT Studio{% endblock %}
+
+{% block content %}
+<div class="finetuning-container" style="display: flex; flex-direction: column; gap: 24px;">
+
+  <!-- TOP HEADER & RUNTIME SPECS -->
+  <div class="card" style="padding: 24px; background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.36);">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+      
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(135deg, #ec4899, #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; box-shadow: 0 0 25px rgba(236, 72, 153, 0.4);">
+          🎯
+        </div>
+        <div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <h2 style="margin: 0; font-size: 1.35rem; font-weight: 700; color: #f8fafc;">
+              Model Fine-Tuning Studio
+            </h2>
+            <span class="badge badge-success" style="font-size: 0.75rem;">● PEFT / LoRA Ready</span>
+          </div>
+          <p style="margin: 4px 0 0; color: #94a3b8; font-size: 0.85rem;">
+            Adapt local models on benchmark datasets like <strong style="color: #c084fc;">LlamaIndex ExtractBench</strong> using Low-Rank Adaptation (LoRA) or Full Training.
+          </p>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openTheoryModal()" style="display: flex; align-items: center; gap: 6px;">
+          <span>📚 Theoretical Foundations</span>
+        </button>
+        <a href="{{ url_for('dashboard.chat') }}" class="btn btn-secondary btn-sm" style="display: flex; align-items: center; gap: 6px;">
+          <span>💬 Open Chat Studio</span>
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- WORKFLOW GRID: 2-COLUMN LAYOUT -->
+  <div style="display: grid; grid-template-columns: 1.1fr 1.3fr; gap: 24px; align-items: start;">
+    
+    <!-- LEFT COLUMN: CONFIGURATION STUDIO (MODEL, DATASET, HYPERPARAMETERS) -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+
+      <!-- STEP 1: TARGET BASE MODEL & FINE-TUNING METHOD -->
+      <div class="card" style="padding: 22px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+          <span style="width: 28px; height: 28px; border-radius: 8px; background: rgba(168, 85, 247, 0.2); color: #c084fc; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem;">1</span>
+          <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #f8fafc;">Target Base Model & Architecture</h3>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          
+          <!-- Select Target Base Model -->
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+              Select Target Downloaded Model
+            </label>
+            <select id="targetBaseModel" class="form-input" style="width: 100%;">
+              {% for m in local_models %}
+              <option value="{{ m.slug }}" {% if loop.first %}selected{% endif %}>
+                {{ m.name }} ({{ m.size_mb }} MB - {{ m.model_format }})
+              </option>
+              {% endfor %}
+              {% if not local_models %}
+              <option value="prajjwal1--bert-tiny">prajjwal1/bert-tiny (Default Lightweight Transformer)</option>
+              {% endif %}
+            </select>
+          </div>
+
+          <!-- Fine-Tuning Method Radio Selection -->
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 8px;">
+              Fine-Tuning Method
+            </label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              
+              <label id="methodLoraLabel" style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: rgba(99, 102, 241, 0.12); border: 1px solid #6366f1; border-radius: 10px; cursor: pointer;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-weight: 700; font-size: 0.9rem; color: #fff;">LoRA (PEFT)</span>
+                  <input type="radio" name="ft_method" value="lora" checked onchange="onMethodChange('lora')">
+                </div>
+                <span style="font-size: 0.72rem; color: #cbd5e1;">Low-Rank Adaptation. Tunes ~0.4% parameters. Saves 70% V-RAM.</span>
+              </label>
+
+              <label id="methodFullLabel" style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; cursor: pointer;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-weight: 700; font-size: 0.9rem; color: #fff;">Full Tuning</span>
+                  <input type="radio" name="ft_method" value="full" onchange="onMethodChange('full')">
+                </div>
+                <span style="font-size: 0.72rem; color: #94a3b8;">Updates all model weights. Maximum expressivity.</span>
+              </label>
+
+            </div>
+          </div>
+
+          <!-- Output Artifact Name -->
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+              Output Model Name
+            </label>
+            <input type="text" id="outputModelName" class="form-input" value="finetuned-extractbench-v1" style="width: 100%; font-family: monospace;" required>
+            <small style="display: block; color: #94a3b8; font-size: 0.72rem; margin-top: 4px;">
+              The fine-tuned weights will be saved to <code>AIModel/model/&lt;name&gt;</code> and ready in Chat Studio.
+            </small>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- STEP 2: DATASET & FIELD MAPPING -->
+      <div class="card" style="padding: 22px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="width: 28px; height: 28px; border-radius: 8px; background: rgba(236, 72, 153, 0.2); color: #f472b6; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem;">2</span>
+            <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #f8fafc;">Dataset & Column Mapping</h3>
+          </div>
+          <span class="badge" style="background: rgba(236, 72, 153, 0.15); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.3); font-size: 0.72rem;">
+            HF Dataface Viewer
+          </span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          
+          <!-- Dataset Search & Presets -->
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+              Dataset Repository ID
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="datasetInput" class="form-input" value="llamaindex/ExtractBench" style="flex: 1;" placeholder="e.g. llamaindex/ExtractBench, imdb, squad">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="loadDatasetSchema()" style="white-space: nowrap;">
+                🔍 Load Schema
+              </button>
+            </div>
+
+            <!-- Quick Presets -->
+            <div style="display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap;">
+              <span style="font-size: 0.72rem; color: #94a3b8;">Benchmarks:</span>
+              <button type="button" class="badge" style="cursor: pointer; background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.4);" onclick="selectPreset('llamaindex/ExtractBench', 'data_schema', 'expected_output', 'short')">
+                ★ ExtractBench
+              </button>
+              <button type="button" class="badge" style="cursor: pointer; background: rgba(30, 41, 59, 0.8); color: #cbd5e1; border: 1px solid rgba(255, 255, 255, 0.1);" onclick="selectPreset('imdb', 'text', 'label', 'train')">
+                IMDb
+              </button>
+              <button type="button" class="badge" style="cursor: pointer; background: rgba(30, 41, 59, 0.8); color: #cbd5e1; border: 1px solid rgba(255, 255, 255, 0.1);" onclick="selectPreset('squad', 'question', 'answers', 'train')">
+                SQuAD
+              </button>
+            </div>
+          </div>
+
+          <!-- Split Selector -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+                Dataset Split
+              </label>
+              <select id="splitSelect" class="form-input" style="width: 100%;" onchange="loadDatasetRows()">
+                <option value="short" selected>short (Fast)</option>
+                <option value="medium">medium</option>
+                <option value="long">long</option>
+                <option value="train">train</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+                Prompt Template
+              </label>
+              <input type="text" id="promptTemplate" class="form-input" value="[EXTRACT]: {input}" style="width: 100%; font-size: 0.8rem;">
+            </div>
+          </div>
+
+          <!-- Column Mapping Controls -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+                Input Feature Column
+              </label>
+              <select id="inputColSelect" class="form-input" style="width: 100%;">
+                <option value="data_schema" selected>data_schema</option>
+                <option value="field_rules">field_rules</option>
+                <option value="text">text</option>
+                <option value="question">question</option>
+              </select>
+            </div>
+
+            <div>
+              <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+                Target Output Column
+              </label>
+              <select id="targetColSelect" class="form-input" style="width: 100%;">
+                <option value="expected_output" selected>expected_output</option>
+                <option value="label">label</option>
+                <option value="answers">answers</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- STEP 3: HYPERPARAMETERS & OPTIMIZER -->
+      <div class="card" style="padding: 22px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+          <span style="width: 28px; height: 28px; border-radius: 8px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem;">3</span>
+          <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #f8fafc;">Hyperparameters & Optimization</h3>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px;">
+          
+          <div>
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: #cbd5e1; margin-bottom: 4px;">
+              Learning Rate (η)
+            </label>
+            <input type="number" id="lrInput" step="0.00001" value="0.00005" class="form-input" style="width: 100%;">
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: #cbd5e1; margin-bottom: 4px;">
+              Epochs
+            </label>
+            <input type="number" id="epochsInput" min="1" max="20" value="3" class="form-input" style="width: 100%;">
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: #cbd5e1; margin-bottom: 4px;">
+              Batch Size
+            </label>
+            <input type="number" id="batchSizeInput" min="1" max="32" value="2" class="form-input" style="width: 100%;">
+          </div>
+
+          <div>
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: #cbd5e1; margin-bottom: 4px;">
+              Optimizer
+            </label>
+            <select id="optimizerSelect" class="form-input" style="width: 100%;">
+              <option value="AdamW" selected>AdamW</option>
+              <option value="SGD">SGD</option>
+            </select>
+          </div>
+
+        </div>
+
+        <!-- LoRA Specific Parameters -->
+        <div id="loraParamsRow" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+          <div>
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: #c084fc; margin-bottom: 4px;">
+              LoRA Rank (r)
+            </label>
+            <input type="number" id="loraRInput" min="2" max="64" value="8" class="form-input" style="width: 100%;">
+          </div>
+          <div>
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: #c084fc; margin-bottom: 4px;">
+              LoRA Alpha (α)
+            </label>
+            <input type="number" id="loraAlphaInput" min="4" max="128" value="16" class="form-input" style="width: 100%;">
+          </div>
+          <div>
+            <label style="display: block; font-size: 0.78rem; font-weight: 600; color: #c084fc; margin-bottom: 4px;">
+              LoRA Dropout
+            </label>
+            <input type="number" id="loraDropoutInput" step="0.01" min="0" max="0.5" value="0.05" class="form-input" style="width: 100%;">
+          </div>
+        </div>
+
+        <!-- Launch Button -->
+        <div style="margin-top: 18px;">
+          <button type="button" id="startFinetuneBtn" class="btn btn-primary" onclick="startFineTuningJob()" style="width: 100%; padding: 14px; font-size: 1rem; font-weight: 700; background: linear-gradient(135deg, #ec4899, #8b5cf6); box-shadow: 0 4px 20px rgba(236, 72, 153, 0.4); display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <span>🚀 Start Fine-Tuning Execution</span>
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: DATAFACE SCHEMA VIEWER & LIVE MONITORING -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+
+      <!-- DATAFACE / HUGGING FACE SCHEMA VIEWER TABLE -->
+      <div class="card" style="padding: 0; overflow: hidden; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+        
+        <div style="padding: 14px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; background: rgba(17, 24, 39, 0.6);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.1rem;">📊</span>
+            <div>
+              <h3 style="margin: 0; font-size: 0.95rem; font-weight: 700; color: #f8fafc;">
+                Dataface Dataset Preview & Schema Inspector
+              </h3>
+              <span id="datafaceSubtitle" style="font-size: 0.75rem; color: #94a3b8;">
+                Showing live rows from <strong style="color: #c084fc;">llamaindex/ExtractBench</strong>
+              </span>
+            </div>
+          </div>
+          <a id="hfViewerLink" href="https://huggingface.co/datasets/llamaindex/ExtractBench/viewer" target="_blank" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 4px 10px;">
+            ↗ View on HF
+          </a>
+        </div>
+
+        <div id="datafaceTableContainer" style="max-height: 260px; overflow: auto; padding: 0;">
+          <table id="datafaceTable" style="width: 100%; border-collapse: collapse; font-size: 0.78rem; text-align: left;">
+            <thead style="background: rgba(30, 41, 59, 0.8); position: sticky; top: 0; z-index: 2;">
+              <tr id="datafaceHeaderRow" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); color: #94a3b8;">
+                <th style="padding: 10px 14px;">ID</th>
+                <th style="padding: 10px 14px;">Data Schema (Input)</th>
+                <th style="padding: 10px 14px;">Expected Output (Target)</th>
+                <th style="padding: 10px 14px;">Category</th>
+              </tr>
+            </thead>
+            <tbody id="datafaceBody">
+              <!-- Dynamically rendered rows -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- VISUAL TRAINING MONITOR & LOSS CURVE CANVAS -->
+      <div class="card" style="padding: 22px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+        
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(16, 185, 129, 0.2); color: #34d399; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">
+              📈
+            </div>
+            <div>
+              <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #f8fafc;">
+                Real-Time Training Loss & Convergence Curve
+              </h3>
+              <span id="trainingStatusText" style="font-size: 0.75rem; color: #94a3b8;">
+                Status: <strong>IDLE (Ready to launch)</strong>
+              </span>
+            </div>
+          </div>
+          
+          <button type="button" id="stopJobBtn" class="btn btn-secondary btn-sm" onclick="stopActiveJob()" style="display: none; color: #f87171; border-color: rgba(239, 68, 68, 0.3);">
+            ⏹ Stop Training
+          </button>
+        </div>
+
+        <!-- Telemetry Badges -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px;">
+          <div style="background: rgba(30, 41, 59, 0.6); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+            <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase;">Train Loss</div>
+            <div id="metricTrainLoss" style="font-size: 1.15rem; font-weight: 700; color: #ec4899;">--</div>
+          </div>
+          <div style="background: rgba(30, 41, 59, 0.6); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+            <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase;">Val Loss</div>
+            <div id="metricValLoss" style="font-size: 1.15rem; font-weight: 700; color: #818cf8;">--</div>
+          </div>
+          <div style="background: rgba(30, 41, 59, 0.6); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+            <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase;">Trainable %</div>
+            <div id="metricTrainablePct" style="font-size: 1.15rem; font-weight: 700; color: #34d399;">--</div>
+          </div>
+          <div style="background: rgba(30, 41, 59, 0.6); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+            <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase;">Progress</div>
+            <div id="metricProgress" style="font-size: 1.15rem; font-weight: 700; color: #38bdf8;">0%</div>
+          </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div style="width: 100%; height: 8px; background: rgba(30, 41, 59, 0.8); border-radius: 4px; overflow: hidden; margin-bottom: 16px;">
+          <div id="progressBarFill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ec4899, #8b5cf6); transition: width 0.3s ease;"></div>
+        </div>
+
+        <!-- Dynamic HTML5 Loss Curve Canvas -->
+        <div style="background: #020617; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 12px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #94a3b8; margin-bottom: 6px;">
+            <span>Empirical Loss Trajectory ℒ(θ)</span>
+            <span><span style="color: #ec4899;">●</span> Train Loss &nbsp;|&nbsp; <span style="color: #818cf8;">●</span> Val Loss</span>
+          </div>
+          <canvas id="lossCanvas" width="600" height="150" style="width: 100%; height: 150px; display: block;"></canvas>
+        </div>
+
+        <!-- Terminal Logs Stream -->
+        <div style="border-radius: 10px; background: #000; border: 1px solid rgba(255, 255, 255, 0.1); padding: 12px; overflow: hidden;">
+          <div style="font-size: 0.72rem; color: #64748b; margin-bottom: 6px; font-family: monospace;">
+            LIVE EXECUTION STREAM (STDOUT)
+          </div>
+          <div id="terminalStream" style="height: 140px; overflow-y: auto; font-family: monospace; font-size: 0.75rem; color: #34d399; line-height: 1.45; white-space: pre-wrap;">
+[*] Studio initialized. Select your target base model, configure your dataset mapping, and start training.
+          </div>
+        </div>
+
+        <!-- Success CTA -->
+        <div id="successBanner" style="display: none; margin-top: 16px; padding: 14px 18px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 10px; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-weight: 700; color: #34d399; font-size: 0.95rem;">🎉 Model Fine-Tuning Completed!</div>
+            <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 2px;">Weights saved into AIModel/model/. Ready for inference.</div>
+          </div>
+          <a href="{{ url_for('dashboard.chat') }}" class="btn btn-success btn-sm" style="font-weight: 600;">
+            💬 Chat with Fine-Tuned Model
+          </a>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<!-- THEORETICAL FOUNDATIONS MODAL -->
+<div id="theoryModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(8px); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+  <div class="card" style="max-width: 760px; width: 100%; max-height: 90vh; overflow-y: auto; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.7); padding: 26px;">
+    
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 1.4rem;">📚</span>
+        <h3 style="margin: 0; color: #fff; font-size: 1.2rem; font-weight: 700;">Mathematical Foundations of Fine-Tuning</h3>
+      </div>
+      <button type="button" onclick="closeTheoryModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.6rem; cursor: pointer;">&times;</button>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 18px; color: #cbd5e1; font-size: 0.88rem; line-height: 1.6;">
+      
+      <!-- LoRA Theory Card -->
+      <div style="background: rgba(30, 41, 59, 0.6); padding: 16px; border-radius: 10px; border-left: 4px solid #c084fc;">
+        <h4 style="margin: 0 0 6px; color: #c084fc; font-size: 1rem; font-weight: 700;">1. Low-Rank Adaptation (LoRA)</h4>
+        <div style="font-family: monospace; background: #020617; padding: 10px 14px; border-radius: 6px; color: #38bdf8; margin: 8px 0; font-size: 0.95rem;">
+          W = W₀ + ΔW = W₀ + (α / r) · (B × A)
+        </div>
+        <p style="margin: 0;">
+          For a pre-trained weight matrix \(W₀ \in \mathbb{R}^{d \times k}\), LoRA constrains parameter updates \(\Delta W\) by factorizing it into two low-rank matrices \(B \in \mathbb{R}^{d \times r}\) and \(A \in \mathbb{R}^{r \times k}\), where rank \(r \ll \min(d, k)\).
+          During training, \(W₀\) is frozen and receives no gradient updates. Only \(A\) and \(B\) contain trainable parameters, reducing GPU memory by ~70% and preventing catastrophic forgetting.
+        </p>
+      </div>
+
+      <!-- ExtractBench Benchmark Formulation -->
+      <div style="background: rgba(30, 41, 59, 0.6); padding: 16px; border-radius: 10px; border-left: 4px solid #ec4899;">
+        <h4 style="margin: 0 0 6px; color: #ec4899; font-size: 1rem; font-weight: 700;">2. LlamaIndex ExtractBench Task Formulation</h4>
+        <p style="margin: 0 0 8px;">
+          ExtractBench benchmarks the model's capability to map complex unstructured text into strictly structured JSON schemas.
+        </p>
+        <div style="font-family: monospace; background: #020617; padding: 10px 14px; border-radius: 6px; color: #34d399; font-size: 0.8rem;">
+          x = (Document_Text, Target_JSON_Schema, Field_Rules)<br>
+          y = Ground_Truth_Extracted_JSON_Object
+        </div>
+      </div>
+
+      <!-- AdamW Optimization Dynamics -->
+      <div style="background: rgba(30, 41, 59, 0.6); padding: 16px; border-radius: 10px; border-left: 4px solid #38bdf8;">
+        <h4 style="margin: 0 0 6px; color: #38bdf8; font-size: 1rem; font-weight: 700;">3. Decoupled Weight Decay (AdamW)</h4>
+        <div style="font-family: monospace; background: #020617; padding: 10px 14px; border-radius: 6px; color: #cbd5e1; font-size: 0.85rem; margin: 8px 0;">
+          m_t = β₁ m_(t-1) + (1-β₁) g_t<br>
+          v_t = β₂ v_(t-1) + (1-β₂) g_t²<br>
+          θ_(t+1) = θ_t - η_t · (m̂_t / (√v̂_t + ε)) - η_t · λ θ_t
+        </div>
+      </div>
+
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+      <button type="button" class="btn btn-secondary" onclick="closeTheoryModal()">Close</button>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let activeJobId = null;
+let pollTimer = null;
+let lossHistory = [];
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadDatasetRows();
+  initLossCanvas();
+});
+
+function onMethodChange(method) {
+  const loraRow = document.getElementById("loraParamsRow");
+  const loraLabel = document.getElementById("methodLoraLabel");
+  const fullLabel = document.getElementById("methodFullLabel");
+
+  if (method === "lora") {
+    loraRow.style.display = "grid";
+    loraLabel.style.borderColor = "#6366f1";
+    loraLabel.style.background = "rgba(99, 102, 241, 0.12)";
+    fullLabel.style.borderColor = "rgba(255, 255, 255, 0.1)";
+    fullLabel.style.background = "rgba(30, 41, 59, 0.6)";
+  } else {
+    loraRow.style.display = "none";
+    fullLabel.style.borderColor = "#6366f1";
+    fullLabel.style.background = "rgba(99, 102, 241, 0.12)";
+    loraLabel.style.borderColor = "rgba(255, 255, 255, 0.1)";
+    loraLabel.style.background = "rgba(30, 41, 59, 0.6)";
+  }
+}
+
+function selectPreset(dsId, inCol, outCol, split) {
+  document.getElementById("datasetInput").value = dsId;
+  document.getElementById("splitSelect").value = split;
+  document.getElementById("hfViewerLink").href = `https://huggingface.co/datasets/${dsId}/viewer`;
+  loadDatasetSchema();
+}
+
+async function loadDatasetSchema() {
+  const dsId = document.getElementById("datasetInput").value.trim();
+  if (!dsId) return;
+
+  try {
+    const res = await fetch(`/api/v1/fine-tuning/datasets/splits?dataset_id=${encodeURIComponent(dsId)}`);
+    const data = await res.json();
+    const splitSelect = document.getElementById("splitSelect");
+    splitSelect.innerHTML = "";
+    if (data.splits && data.splits.length > 0) {
+      data.splits.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s.split;
+        opt.innerText = `${s.split} (${s.num_rows || '100+'} samples)`;
+        splitSelect.appendChild(opt);
+      });
+    } else {
+      splitSelect.innerHTML = `<option value="train">train</option>`;
+    }
+  } catch (err) {
+    console.warn("Could not load splits:", err);
+  }
+
+  loadDatasetRows();
+}
+
+async function loadDatasetRows() {
+  const dsId = document.getElementById("datasetInput").value.trim();
+  const split = document.getElementById("splitSelect").value;
+  const tbody = document.getElementById("datafaceBody");
+  const headerRow = document.getElementById("datafaceHeaderRow");
+  const subtitle = document.getElementById("datafaceSubtitle");
+
+  subtitle.innerHTML = `Showing preview from <strong style="color:#c084fc;">${dsId}</strong> (${split})`;
+  tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px; color: #94a3b8;"><span class="spinner" style="width:16px;height:16px;"></span> Loading Dataface rows from Hugging Face...</td></tr>`;
+
+  try {
+    const res = await fetch(`/api/v1/fine-tuning/datasets/rows?dataset_id=${encodeURIComponent(dsId)}&split=${encodeURIComponent(split)}&length=8`);
+    const data = await res.json();
+
+    if (data.rows && data.rows.length > 0) {
+      const cols = data.columns || Object.keys(data.rows[0]);
+      
+      // Update column selectors
+      updateColumnDropdowns(cols);
+
+      // Render table headers
+      headerRow.innerHTML = "";
+      cols.slice(0, 5).forEach(c => {
+        const th = document.createElement("th");
+        th.style.cssText = "padding: 10px 14px; text-transform: uppercase; font-size: 0.72rem;";
+        th.innerText = c;
+        headerRow.appendChild(th);
+      });
+
+      // Render rows
+      tbody.innerHTML = "";
+      data.rows.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.style.cssText = "border-bottom: 1px solid rgba(255, 255, 255, 0.05); color: #cbd5e1;";
+        cols.slice(0, 5).forEach(c => {
+          const td = document.createElement("td");
+          td.style.cssText = "padding: 8px 14px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 0.72rem;";
+          let val = r[c];
+          if (typeof val === "object") val = JSON.stringify(val);
+          td.innerText = val ? String(val) : "-";
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    } else {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px; color: #94a3b8;">No rows returned for this split.</td></tr>`;
+    }
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px; color: #f87171;">Failed to load rows: ${err.message}</td></tr>`;
+  }
+}
+
+function updateColumnDropdowns(cols) {
+  const inSel = document.getElementById("inputColSelect");
+  const outSel = document.getElementById("targetColSelect");
+  
+  const currentIn = inSel.value;
+  const currentOut = outSel.value;
+
+  inSel.innerHTML = "";
+  outSel.innerHTML = "";
+
+  cols.forEach(c => {
+    const o1 = document.createElement("option");
+    o1.value = c;
+    o1.innerText = c;
+    if (c === currentIn || c === "data_schema" || c === "text") o1.selected = true;
+    inSel.appendChild(o1);
+
+    const o2 = document.createElement("option");
+    o2.value = c;
+    o2.innerText = c;
+    if (c === currentOut || c === "expected_output" || c === "label") o2.selected = true;
+    outSel.appendChild(o2);
+  });
+}
+
+async function startFineTuningJob() {
+  const btn = document.getElementById("startFinetuneBtn");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner" style="width:16px;height:16px;"></span> Initializing Training Engine...`;
+
+  const baseModel = document.getElementById("targetBaseModel").value;
+  const outputModel = document.getElementById("outputModelName").value.trim();
+  const datasetId = document.getElementById("datasetInput").value.trim();
+  const split = document.getElementById("splitSelect").value;
+  const inCol = document.getElementById("inputColSelect").value;
+  const outCol = document.getElementById("targetColSelect").value;
+  const promptTpl = document.getElementById("promptTemplate").value;
+  const method = document.querySelector("input[name='ft_method']:checked").value;
+  const lr = parseFloat(document.getElementById("lrInput").value) || 0.00005;
+  const epochs = parseInt(document.getElementById("epochsInput").value) || 3;
+  const batchSize = parseInt(document.getElementById("batchSizeInput").value) || 2;
+  const optimizer = document.getElementById("optimizerSelect").value;
+  const loraR = parseInt(document.getElementById("loraRInput").value) || 8;
+  const loraAlpha = parseInt(document.getElementById("loraAlphaInput").value) || 16;
+  const loraDropout = parseFloat(document.getElementById("loraDropoutInput").value) || 0.05;
+
+  const payload = {
+    base_model_slug: baseModel,
+    output_model_name: outputModel,
+    dataset_id: datasetId,
+    dataset_split: split,
+    input_column: inCol,
+    target_column: outCol,
+    prompt_template: promptTpl,
+    method: method,
+    learning_rate: lr,
+    epochs: epochs,
+    batch_size: batchSize,
+    lora_r: loraR,
+    lora_alpha: loraAlpha,
+    lora_dropout: loraDropout,
+    optimizer_name: optimizer,
+    scheduler_name: "linear",
+    device: "cpu"
+  };
+
+  try {
+    const res = await fetch("/api/v1/fine-tuning/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      activeJobId = data.job.job_id;
+      lossHistory = [];
+      document.getElementById("stopJobBtn").style.display = "block";
+      document.getElementById("successBanner").style.display = "none";
+      document.getElementById("trainingStatusText").innerHTML = `Status: <strong style="color: #38bdf8;">TRAINING IN PROGRESS (${activeJobId})</strong>`;
+      
+      startPollingProgress();
+    } else {
+      alert("Error starting job: " + (data.detail || "Unknown error"));
+      btn.disabled = false;
+      btn.innerHTML = `<span>🚀 Start Fine-Tuning Execution</span>`;
+    }
+  } catch (err) {
+    alert("Connection error: " + err.message);
+    btn.disabled = false;
+    btn.innerHTML = `<span>🚀 Start Fine-Tuning Execution</span>`;
+  }
+}
+
+function startPollingProgress() {
+  if (pollTimer) clearInterval(pollTimer);
+
+  pollTimer = setInterval(async () => {
+    if (!activeJobId) return;
+
+    try {
+      const res = await fetch(`/api/v1/fine-tuning/jobs/${activeJobId}`);
+      const job = await res.json();
+
+      // Update metrics
+      document.getElementById("metricTrainLoss").innerText = job.train_loss ? job.train_loss.toFixed(4) : "--";
+      document.getElementById("metricValLoss").innerText = job.val_loss ? job.val_loss.toFixed(4) : "--";
+      document.getElementById("metricTrainablePct").innerText = `${job.trainable_pct}%`;
+      document.getElementById("metricProgress").innerText = `${job.progress_pct}%`;
+      document.getElementById("progressBarFill").style.width = `${job.progress_pct}%`;
+
+      // Update logs
+      if (job.logs && job.logs.length > 0) {
+        const term = document.getElementById("terminalStream");
+        term.innerText = job.logs.join("\n");
+        term.scrollTop = term.scrollHeight;
+      }
+
+      // Update loss curves
+      if (job.loss_history && job.loss_history.length > 0) {
+        lossHistory = job.loss_history;
+        drawLossCurve(lossHistory);
+      }
+
+      // Check if finished
+      if (job.status === "completed") {
+        clearInterval(pollTimer);
+        document.getElementById("trainingStatusText").innerHTML = `Status: <strong style="color: #34d399;">COMPLETED</strong>`;
+        document.getElementById("stopJobBtn").style.display = "none";
+        document.getElementById("successBanner").style.display = "flex";
+        document.getElementById("startFinetuneBtn").disabled = false;
+        document.getElementById("startFinetuneBtn").innerHTML = `<span>🚀 Start Fine-Tuning Execution</span>`;
+      } else if (job.status === "failed" || job.status === "stopped") {
+        clearInterval(pollTimer);
+        document.getElementById("trainingStatusText").innerHTML = `Status: <strong style="color: #f87171;">${job.status.toUpperCase()}</strong>`;
+        document.getElementById("stopJobBtn").style.display = "none";
+        document.getElementById("startFinetuneBtn").disabled = false;
+        document.getElementById("startFinetuneBtn").innerHTML = `<span>🚀 Start Fine-Tuning Execution</span>`;
+      }
+    } catch (err) {
+      console.warn("Polling error:", err);
+    }
+  }, 1000);
+}
+
+async function stopActiveJob() {
+  if (!activeJobId) return;
+  if (!confirm("Are you sure you want to stop this fine-tuning job?")) return;
+
+  try {
+    await fetch(`/api/v1/fine-tuning/jobs/${activeJobId}/stop`, { method: "POST" });
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function initLossCanvas() {
+  const canvas = document.getElementById("lossCanvas");
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#020617";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+  ctx.lineWidth = 1;
+  for (let y = 30; y < canvas.height; y += 30) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+}
+
+function drawLossCurve(history) {
+  const canvas = document.getElementById("lossCanvas");
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width;
+  const h = canvas.height;
+
+  // Clear background
+  ctx.fillStyle = "#020617";
+  ctx.fillRect(0, 0, w, h);
+
+  // Grid
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+  ctx.lineWidth = 1;
+  for (let y = 30; y < h; y += 30) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+
+  if (history.length < 2) return;
+
+  const maxLoss = 3.0;
+  const minLoss = 0.0;
+
+  // 1. Draw Train Loss (Pink #ec4899)
+  ctx.strokeStyle = "#ec4899";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  history.forEach((pt, idx) => {
+    const x = (idx / (history.length - 1)) * (w - 40) + 20;
+    const norm = Math.max(0, Math.min(1, (pt.train_loss - minLoss) / (maxLoss - minLoss)));
+    const y = h - 20 - norm * (h - 40);
+    if (idx === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // 2. Draw Val Loss (Indigo #818cf8)
+  ctx.strokeStyle = "#818cf8";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  history.forEach((pt, idx) => {
+    const x = (idx / (history.length - 1)) * (w - 40) + 20;
+    const norm = Math.max(0, Math.min(1, (pt.val_loss - minLoss) / (maxLoss - minLoss)));
+    const y = h - 20 - norm * (h - 40);
+    if (idx === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function openTheoryModal() {
+  document.getElementById("theoryModal").style.display = "flex";
+}
+
+function closeTheoryModal() {
+  document.getElementById("theoryModal").style.display = "none";
+}
+</script>
+{% endblock %}

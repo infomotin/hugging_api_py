@@ -18,6 +18,9 @@ ROUTE_MAP = {
     "dashboard.audit_logs": "/dashboard/audit-logs",
     "dashboard.api_explorer": "/dashboard/api-explorer",
     "dashboard.ai_models": "/dashboard/ai-models",
+    "dashboard.chat": "/dashboard/chat",
+    "dashboard.api_keys": "/dashboard/api-keys",
+    "dashboard.fine_tuning": "/dashboard/fine-tuning",
 }
 
 def render_template(template_name: str, request: Request, context: dict = None):

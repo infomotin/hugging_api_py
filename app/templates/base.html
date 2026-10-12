@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
-  {% if current_user.is_authenticated %}
+  {% if current_user and current_user.username %}
   <div class="app-layout">
     <!-- Sidebar -->
     <aside class="app-sidebar">
@@ -39,6 +39,19 @@
           <span>Roles & Matrix</span>
         </a>
         {% endif %}
+
+        <a href="{{ url_for('dashboard.chat') }}" class="nav-link {% if request.url.path == '/dashboard/chat' %}active{% endif %}">
+          <span class="nav-icon">💬</span>
+          <span>AI Chat Studio</span>
+        </a>
+        <a href="{{ url_for('dashboard.fine_tuning') }}" class="nav-link {% if request.url.path == '/dashboard/fine-tuning' %}active{% endif %}">
+          <span class="nav-icon">🎯</span>
+          <span>Model Fine-Tuning</span>
+        </a>
+        <a href="{{ url_for('dashboard.api_keys') }}" class="nav-link {% if request.url.path == '/dashboard/api-keys' %}active{% endif %}">
+          <span class="nav-icon">🔑</span>
+          <span>API Keys</span>
+        </a>
 
         <a href="{{ url_for('dashboard.resources') }}" class="nav-link {% if request.url.path == '/dashboard/resources' %}active{% endif %}">
           <span class="nav-icon">📁</span>

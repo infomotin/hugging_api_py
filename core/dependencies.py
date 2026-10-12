@@ -1,10 +1,12 @@
+from datetime import datetime
+import hashlib
 from typing import Optional, List
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core.security import decode_access_token
-from models import User
+from models import User, ApiKey
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
@@ -12,7 +14,11 @@ def get_token_from_request(request: Request, bearer_token: Optional[str] = Depen
     # 1. Check Bearer Authorization header
     if bearer_token:
         return bearer_token
-    # 2. Check cookie (used by web views)
+    # 2. Check X-API-Key or api-key headers
+    custom_api_key = request.headers.get("x-api-key") or request.headers.get("api-key")
+    if custom_api_key:
+        return custom_api_key.strip()
+    # 3. Check cookie (used by web views)
     cookie_token = request.cookies.get("access_token")
     if cookie_token:
         if cookie_token.startswith("Bearer "):
@@ -21,11 +27,27 @@ def get_token_from_request(request: Request, bearer_token: Optional[str] = Depen
     return None
 
 def get_current_user_optional(
+    request: Request,
     token: Optional[str] = Depends(get_token_from_request),
     db: Session = Depends(get_db)
 ) -> Optional[User]:
     if not token:
         return None
+
+    # Check if this is an API key (e.g. sk-ent-... or any sk- prefix)
+    if token.startswith("sk-") or request.headers.get("x-api-key") or request.headers.get("api-key"):
+        raw_key = token.strip()
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        api_key_obj = db.query(ApiKey).filter(ApiKey.key_hash == key_hash, ApiKey.is_active == True).first()
+        if api_key_obj and api_key_obj.user:
+            api_key_obj.last_used_at = datetime.utcnow()
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+            return api_key_obj.user
+
+    # Standard JWT access token
     payload = decode_access_token(token)
     if not payload:
         return None

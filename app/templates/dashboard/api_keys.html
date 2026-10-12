@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}API Keys Management — Enterprise AI Gateway{% endblock %}
+{% block header_title %}API Keys & External Access Gateway{% endblock %}
+
+{% block content %}
+<div style="display: flex; flex-direction: column; gap: 24px;">
+
+  <!-- Header Banner & Create Key Trigger -->
+  <div class="card" style="padding: 24px; background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.36);">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+      
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #10b981, #3b82f6); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 0 24px rgba(16, 185, 129, 0.4);">
+          🔑
+        </div>
+        <div>
+          <h2 style="margin: 0; font-size: 1.35rem; font-weight: 700; color: #f8fafc;">
+            Enterprise API Keys
+          </h2>
+          <p style="margin: 4px 0 0; color: #94a3b8; font-size: 0.85rem;">
+            Authenticate external applications (ChatGPT-compatible, Gemini, Grok SDKs, or custom webapps) with this local FastAPI instance.
+          </p>
+        </div>
+      </div>
+
+      <button type="button" class="btn btn-primary" onclick="openCreateModal()" style="display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #10b981, #059669); font-weight: 600;">
+        <span>+ Generate New API Key</span>
+      </button>
+
+    </div>
+  </div>
+
+  <!-- NEW SECRET TOKEN NOTICE (If redirected after creation) -->
+  {% if new_token %}
+  <div class="card" style="padding: 22px; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 14px; box-shadow: 0 0 30px rgba(16, 185, 129, 0.15);">
+    <div style="display: flex; align-items: flex-start; gap: 14px;">
+      <div style="font-size: 1.6rem;">🎉</div>
+      <div style="flex: 1;">
+        <h4 style="margin: 0; color: #34d399; font-size: 1.05rem; font-weight: 700;">
+          API Key Generated Successfully!
+        </h4>
+        <p style="margin: 4px 0 12px; color: #cbd5e1; font-size: 0.85rem;">
+          Please copy your secret key now. <strong>You will not be able to view this full secret key again.</strong>
+        </p>
+        
+        <div style="display: flex; gap: 10px; max-width: 600px;">
+          <input type="text" id="newTokenInput" value="{{ new_token }}" readonly class="form-input" style="font-family: monospace; font-size: 0.95rem; color: #38bdf8; background: #020617; font-weight: 600;">
+          <button type="button" class="btn btn-success" onclick="copyNewToken()" style="flex-shrink: 0; font-weight: 600;">
+            📋 Copy Key
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Active Keys Table -->
+  <div class="card" style="padding: 0; overflow: hidden; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+    
+    <div style="padding: 16px 22px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between;">
+      <h3 style="margin: 0; font-size: 1rem; color: #f8fafc; font-weight: 600;">
+        Active Secret Keys ({{ api_keys|length }})
+      </h3>
+      <span style="font-size: 0.78rem; color: #94a3b8;">
+        Protected with SHA-256 Hashes
+      </span>
+    </div>
+
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.88rem;">
+        <thead>
+          <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: rgba(17, 24, 39, 0.5); color: #94a3b8; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em;">
+            <th style="padding: 14px 22px;">Name / Label</th>
+            <th style="padding: 14px 22px;">Key Prefix</th>
+            <th style="padding: 14px 22px;">Created</th>
+            <th style="padding: 14px 22px;">Last Used</th>
+            <th style="padding: 14px 22px;">Status</th>
+            <th style="padding: 14px 22px; text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for k in api_keys %}
+          <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); color: #e2e8f0;">
+            <td style="padding: 14px 22px; font-weight: 600;">
+              {{ k.name }}
+            </td>
+            <td style="padding: 14px 22px;">
+              <code style="background: rgba(30, 41, 59, 0.8); padding: 4px 8px; border-radius: 6px; color: #38bdf8; font-family: monospace;">
+                {{ k.key_prefix }}
+              </code>
+            </td>
+            <td style="padding: 14px 22px; color: #94a3b8;">
+              {{ k.created_at.strftime('%b %d, %Y %H:%M') if k.created_at else 'N/A' }}
+            </td>
+            <td style="padding: 14px 22px; color: #94a3b8;">
+              {{ k.last_used_at.strftime('%b %d, %Y %H:%M') if k.last_used_at else 'Never' }}
+            </td>
+            <td style="padding: 14px 22px;">
+              {% if k.is_active %}
+              <span class="badge badge-success" style="font-size: 0.75rem;">● Active</span>
+              {% else %}
+              <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">Revoked</span>
+              {% endif %}
+            </td>
+            <td style="padding: 14px 22px; text-align: right;">
+              <form action="/dashboard/api-keys/{{ k.id }}/delete" method="POST" onsubmit="return confirm('Are you sure you want to revoke and delete key \'{{ k.name }}\'? External clients using it will lose access.');" style="display: inline;">
+                <button type="submit" class="btn btn-secondary btn-sm" style="color: #fda4af; border-color: rgba(239, 68, 68, 0.3);">
+                  Revoke
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not api_keys %}
+          <tr>
+            <td colspan="6" style="padding: 36px 22px; text-align: center; color: #94a3b8;">
+              No API keys created yet. Generate one above to access the chat backend from outside applications!
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- Quick Developer Cheat Sheet -->
+  <div class="card" style="padding: 22px; background: rgba(17, 24, 39, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+    <h4 style="margin: 0 0 10px; color: #f8fafc; font-size: 0.95rem; font-weight: 600;">
+      💡 How to use your API Key outside this application
+    </h4>
+    <p style="margin: 0 0 14px; color: #94a3b8; font-size: 0.85rem;">
+      Pass your API key in any HTTP request via either header:
+    </p>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+      <div style="background: #020617; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+        <div style="font-size: 0.75rem; color: #818cf8; font-weight: 600; margin-bottom: 4px;">Standard Bearer Authorization (OpenAI style)</div>
+        <code style="color: #38bdf8; font-size: 0.85rem;">Authorization: Bearer sk-ent-...</code>
+      </div>
+      <div style="background: #020617; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+        <div style="font-size: 0.75rem; color: #34d399; font-weight: 600; margin-bottom: 4px;">Custom API Header (Gemini / Claude style)</div>
+        <code style="color: #38bdf8; font-size: 0.85rem;">X-API-Key: sk-ent-...</code>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- CREATE KEY MODAL -->
+<div id="createKeyModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+  <div class="card" style="max-width: 480px; width: 100%; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.7); padding: 26px;">
+    
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #10b981, #3b82f6); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+          🔑
+        </div>
+        <h3 style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 700;">Generate API Key</h3>
+      </div>
+      <button type="button" onclick="closeCreateModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.6rem; cursor: pointer;">&times;</button>
+    </div>
+
+    <form action="/dashboard/api-keys/create" method="POST">
+      <div style="margin-bottom: 18px;">
+        <label style="display: block; font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+          Key Name / Application Label
+        </label>
+        <input type="text" name="name" class="form-input" placeholder="e.g. Production Mobile App, Discord Bot, Webhook" required autofocus style="width: 100%;">
+        <small style="display: block; color: #94a3b8; font-size: 0.75rem; margin-top: 4px;">
+          Choose a descriptive name to identify where this key is used.
+        </small>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669);">
+          Generate Key
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openCreateModal() {
+  document.getElementById("createKeyModal").style.display = "flex";
+}
+
+function closeCreateModal() {
+  document.getElementById("createKeyModal").style.display = "none";
+}
+
+function copyNewToken() {
+  const input = document.getElementById("newTokenInput");
+  if (!input) return;
+  input.select();
+  navigator.clipboard.writeText(input.value).then(() => {
+    alert("Secret API key copied to clipboard! Store it safely.");
+  });
+}
+</script>
+{% endblock %}

@@ -1,5 +1,5 @@
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from core.config import settings
 from core.dependencies import require_permission, require_admin
 from models import User
@@ -7,7 +7,8 @@ from schemas.ai import (
     AiAnalyzeRequest, AiAnalyzeResponse,
     HFTokenRequest, HFTokenResponse,
     ModelDownloadRequest, ModelDownloadResponse,
-    LocalModelOut, ModelTestRequest, ModelTestResponse
+    LocalModelOut, ModelTestRequest, ModelTestResponse,
+    HFModelSearchResult
 )
 from AIModel.model_loader import model_manager
 from AIModel.pipeline import AITextPipeline
@@ -30,6 +31,19 @@ def get_ai_info(
     current_user: User = Depends(require_permission("use_ai_pipeline"))
 ):
     return AITextPipeline.get_info()
+
+
+# --- Hugging Face Search & Autocomplete ---
+
+@router.get("/hf-search", response_model=List[HFModelSearchResult])
+def search_huggingface_models(
+    query: str = Query("", description="Keyword to search on Hugging Face"),
+    gguf_only: bool = Query(False, description="Filter for GGUF models only"),
+    limit: int = Query(15, ge=1, le=50),
+    current_user: User = Depends(require_permission("view_dashboard"))
+):
+    results = model_manager.search_hf_models(query=query, limit=limit, gguf_only=gguf_only)
+    return [HFModelSearchResult(**r) for r in results]
 
 
 # --- Hugging Face API Configuration ---
@@ -60,7 +74,7 @@ def configure_hf_token(
         )
 
 
-# --- Model Download & Catalog Management ---
+# --- Model Download, Upload & Local Catalog ---
 
 @router.get("/models", response_model=List[LocalModelOut])
 def list_local_models(
@@ -74,14 +88,41 @@ def download_ai_model(
     req: ModelDownloadRequest,
     current_user: User = Depends(require_admin)
 ):
-    app_logger.info(f"Admin '{current_user.username}' requested download of model: {req.model_id}")
-    res = model_manager.download_model(model_id=req.model_id, token=req.token)
+    app_logger.info(f"Admin '{current_user.username}' requested download of model: {req.model_id} (file={req.filename}, gguf={req.is_gguf})")
+    res = model_manager.download_model(
+        model_id=req.model_id,
+        filename=req.filename,
+        is_gguf=req.is_gguf,
+        token=req.token
+    )
     if not res.get("success"):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=res.get("message", "Model download failed.")
         )
     return ModelDownloadResponse(**res)
+
+
+@router.post("/upload")
+async def upload_local_model(
+    model_file: UploadFile = File(...),
+    custom_name: Optional[str] = Form(None),
+    current_user: User = Depends(require_admin)
+):
+    """Upload model file (.gguf, .safetensors, .bin, .zip) from local machine."""
+    app_logger.info(f"Admin '{current_user.username}' uploading model: {model_file.filename}")
+    content = await model_file.read()
+    res = model_manager.save_uploaded_model(
+        file_name=model_file.filename,
+        file_bytes=content,
+        custom_name=custom_name
+    )
+    if not res.get("success"):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=res.get("message", "Model upload failed.")
+        )
+    return res
 
 
 @router.post("/models/test", response_model=ModelTestResponse)

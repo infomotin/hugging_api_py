@@ -38,6 +38,13 @@ app.include_router(web_auth_router)
 app.include_router(web_dashboard_router)
 
 # Custom Error Handlers
+@app.exception_handler(401)
+async def unauthorized_exception_handler(request: Request, exc):
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(status_code=401, content={"error": "Unauthorized", "detail": str(exc.detail if hasattr(exc, "detail") else "Authentication required")})
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=f"/auth/login?next={request.url.path}", status_code=302)
+
 @app.exception_handler(403)
 async def forbidden_exception_handler(request: Request, exc):
     if request.url.path.startswith("/api/"):

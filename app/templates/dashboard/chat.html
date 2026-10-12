@@ -1,0 +1,577 @@
+{% extends "base.html" %}
+
+{% block title %}AI Chat Studio — LM Studio Architecture{% endblock %}
+{% block header_title %}AI Chat Studio & Model Runtime{% endblock %}
+
+{% block content %}
+<div class="chat-studio-container" style="display: flex; flex-direction: column; gap: 20px; height: calc(100vh - 120px);">
+
+  <!-- TOP ENGINE BAR: Active Model & LM Studio Hardware Controls -->
+  <div class="card" style="padding: 16px 22px; background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.36);">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+      
+      <!-- Current Active Model Info -->
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #6366f1, #a855f7); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);">
+          ⚡
+        </div>
+        <div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; font-weight: 600;">Active Backend Model</span>
+            <span id="activeModelBadge" class="badge badge-success" style="font-size: 0.75rem;">
+              ● ONLINE
+            </span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
+            <h3 id="activeModelTitle" style="margin: 0; font-size: 1.15rem; font-weight: 700; color: #f8fafc;">
+              {{ engine_status.active_model_slug or "None Loaded" }}
+            </h3>
+            <span id="deviceBadge" class="badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.4); text-transform: uppercase; font-size: 0.75rem;">
+              {{ engine_status.device_mode.upper() }}
+            </span>
+            {% if engine_status.gpu_layers > 0 %}
+            <span id="gpuLayersBadge" class="badge badge-manager" style="font-size: 0.75rem;">
+              {{ engine_status.gpu_layers }} GPU Layers
+            </span>
+            {% endif %}
+            {% if engine_status.vram_mb > 0 %}
+            <span id="vramBadge" class="badge badge-admin" style="font-size: 0.75rem;">
+              {{ engine_status.vram_mb }} MB V-RAM
+            </span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleHardwarePanel()" style="display: flex; align-items: center; gap: 6px;">
+          <span>⚙️ Hardware Config (LM Studio)</span>
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openApiModal()" style="display: flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #3b82f6, #8b5cf6);">
+          <span>🔌 External API (cURL / Python)</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Collapsible Hardware & Model Switcher Panel -->
+    <div id="hardwareConfigPanel" style="display: none; margin-top: 18px; padding-top: 18px; border-top: 1px solid rgba(255, 255, 255, 0.08);">
+      <form id="hardwareConfigForm" onsubmit="handleHardwareSubmit(event)">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px;">
+          
+          <!-- Select Active Model -->
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+              Choose Active Model
+            </label>
+            <select id="modelSelect" name="model_slug" class="form-input" style="width: 100%;" required>
+              {% for m in local_models %}
+              <option value="{{ m.slug }}" {% if m.slug == engine_status.active_model_slug %}selected{% endif %}>
+                {{ m.name }} ({{ m.size_mb }} MB {% if m.is_gguf %}[GGUF]{% else %}[Transformers]{% endif %})
+              </option>
+              {% endfor %}
+              {% if not local_models %}
+              <option value="prajjwal1--bert-tiny">Default Lightweight Pipeline (Demo)</option>
+              {% endif %}
+            </select>
+            <small style="display: block; color: #94a3b8; font-size: 0.75rem; margin-top: 4px;">
+              Only 1 model is active for real-time inference. Download more from <a href="{{ url_for('dashboard.ai_models') }}" style="color: #818cf8; text-decoration: underline;">Hugging Face Hub</a>.
+            </small>
+          </div>
+
+          <!-- Device Mode (CPU vs CPU + GPU) -->
+          <div>
+            <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+              Compute Accelerator
+            </label>
+            <div style="display: flex; gap: 10px;">
+              <label style="flex: 1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="device_mode" value="cpu" id="radioCpu" {% if engine_status.device_mode == 'cpu' %}checked{% endif %} onchange="onDeviceChange()">
+                <div>
+                  <div style="font-weight: 600; font-size: 0.85rem; color: #f8fafc;">CPU Only</div>
+                  <div style="font-size: 0.7rem; color: #94a3b8;">System RAM & Threads</div>
+                </div>
+              </label>
+
+              <label style="flex: 1; display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; cursor: pointer;">
+                <input type="radio" name="device_mode" value="cuda" id="radioCuda" {% if engine_status.device_mode == 'cuda' %}checked{% endif %} onchange="onDeviceChange()">
+                <div>
+                  <div style="font-weight: 600; font-size: 0.85rem; color: #f8fafc;">CPU + GPU (CUDA)</div>
+                  <div style="font-size: 0.7rem; color: #94a3b8;">{% if engine_status.cuda_available %}NVIDIA CUDA Available{% else %}No GPU Detected (CPU Fallback){% endif %}</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- LM Studio GPU Layers Slider -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="font-size: 0.82rem; font-weight: 600; color: #cbd5e1;">Offload GPU Layers</label>
+              <span id="gpuLayersVal" style="font-size: 0.85rem; font-weight: 700; color: #a855f7;">{{ engine_status.gpu_layers }}</span>
+            </div>
+            <input type="range" id="gpuLayersInput" name="gpu_layers" min="0" max="64" value="{{ engine_status.gpu_layers }}" style="width: 100%; accent-color: #a855f7;" oninput="document.getElementById('gpuLayersVal').innerText = this.value">
+            <small style="display: block; color: #94a3b8; font-size: 0.72rem; margin-top: 4px;">
+              Like LM Studio: Set layer count to offload directly to V-RAM. (0 = Full CPU)
+            </small>
+          </div>
+
+          <!-- LM Studio V-RAM Allocation Limit -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="font-size: 0.82rem; font-weight: 600; color: #cbd5e1;">V-RAM Allocation (MB)</label>
+              <span id="vramVal" style="font-size: 0.85rem; font-weight: 700; color: #38bdf8;">{{ engine_status.vram_mb }} MB</span>
+            </div>
+            <input type="range" id="vramInput" name="vram_mb" min="0" max="24576" step="512" value="{{ engine_status.vram_mb }}" style="width: 100%; accent-color: #38bdf8;" oninput="document.getElementById('vramVal').innerText = this.value + ' MB'">
+            <small style="display: block; color: #94a3b8; font-size: 0.72rem; margin-top: 4px;">
+              Maximum Dedicated GPU V-RAM allocation cap (0 = Automatic).
+            </small>
+          </div>
+
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="toggleHardwarePanel()">Cancel</button>
+          <button type="submit" id="applyConfigBtn" class="btn btn-primary btn-sm" style="display: flex; align-items: center; gap: 6px;">
+            <span>💾 Apply & Switch Active Model</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CHAT WINDOW (MESSAGES + PROMPT INPUT) -->
+  <div class="card" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 0; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+    
+    <!-- Chat Header Bar -->
+    <div style="padding: 12px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between; background: rgba(17, 24, 39, 0.5);">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 0.85rem; color: #94a3b8;">Chat Session:</span>
+        <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3);">
+          ⚡ Local Node Inference
+        </span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="clearChatHistory()" style="padding: 4px 10px; font-size: 0.75rem;">
+          🧹 Clear History
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages List -->
+    <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 18px;">
+      
+      <!-- System / Assistant Initial Welcome Message -->
+      <div class="chat-message assistant-message" style="display: flex; gap: 14px; max-width: 85%;">
+        <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #a855f7); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;">
+          🤖
+        </div>
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <span style="font-weight: 600; font-size: 0.85rem; color: #818cf8;">Local Assistant</span>
+            <span style="font-size: 0.72rem; color: #64748b;">System Core</span>
+          </div>
+          <div class="message-bubble" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.08); padding: 14px 18px; border-radius: 12px; color: #f1f5f9; font-size: 0.92rem; line-height: 1.55;">
+            Welcome to the <strong>Enterprise AI Chat Studio</strong>!<br><br>
+            Current active model is <code>{{ engine_status.active_model_slug }}</code> running on <strong>{{ engine_status.device_mode.upper() }}</strong>. 
+            All prompt processing and weight calculations run securely on this server.<br><br>
+            Type your prompt below or use your <strong>External API Keys</strong> to query this server from outside scripts, ChatGPT plugins, or custom webapps!
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Typing / Generating Indicator -->
+    <div id="typingIndicator" style="display: none; padding: 0 22px 10px 64px; color: #94a3b8; font-size: 0.82rem; align-items: center; gap: 8px;">
+      <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+      <span>Generating response with active backend model...</span>
+    </div>
+
+    <!-- Chat Input Form -->
+    <div style="padding: 16px 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(17, 24, 39, 0.6);">
+      <form id="chatForm" onsubmit="handleChatSubmit(event)" style="display: flex; gap: 12px; align-items: flex-end;">
+        <div style="flex: 1; position: relative;">
+          <textarea id="promptInput" rows="2" placeholder="Send a message to the active AI model... (Enter to send, Shift+Enter for newline)" style="width: 100%; resize: none; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; color: #fff; padding: 10px 14px; font-family: inherit; font-size: 0.92rem; outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);" onkeydown="handleTextareaKeydown(event)"></textarea>
+        </div>
+        <button type="submit" id="sendBtn" class="btn btn-primary" style="padding: 12px 22px; height: 46px; display: flex; align-items: center; gap: 8px; font-weight: 600; background: linear-gradient(135deg, #6366f1, #8b5cf6);">
+          <span>Send</span>
+          <span>➤</span>
+        </button>
+      </form>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- EXTERNAL API INTEGRATION MODAL (cURL, Python, OpenAI SDK) -->
+<div id="apiModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+  <div class="card" style="max-width: 780px; width: 100%; max-height: 90vh; overflow-y: auto; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.7); padding: 26px;">
+    
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+          🔌
+        </div>
+        <div>
+          <h3 style="margin: 0; color: #fff; font-size: 1.15rem; font-weight: 700;">Connect Outside Applications</h3>
+          <p style="margin: 2px 0 0; color: #94a3b8; font-size: 0.8rem;">Use your API Key just like OpenAI, Gemini, or Grok via FastAPI</p>
+        </div>
+      </div>
+      <button type="button" onclick="closeApiModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.6rem; cursor: pointer;">&times;</button>
+    </div>
+
+    <!-- Select User API Key -->
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+        Select Your API Key:
+      </label>
+      <div style="display: flex; gap: 10px;">
+        <select id="snippetApiKeySelect" class="form-input" style="flex: 1;" onchange="updateCodeSnippets()">
+          {% for k in api_keys %}
+          <option value="{{ k.key_prefix }}">{{ k.name }} ({{ k.key_prefix }})</option>
+          {% endfor %}
+          {% if not api_keys %}
+          <option value="sk-ent-YOUR_SECRET_KEY">No API Key Generated Yet (Using Placeholder)</option>
+          {% endif %}
+        </select>
+        <a href="{{ url_for('dashboard.api_keys') }}" class="btn btn-secondary btn-sm" style="display: flex; align-items: center;">
+          + Create New Key
+        </a>
+      </div>
+    </div>
+
+    <!-- Endpoint URL Info -->
+    <div style="padding: 10px 14px; background: rgba(30, 41, 59, 0.6); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06); margin-bottom: 16px; font-size: 0.85rem; color: #cbd5e1;">
+      <strong>FastAPI Chat Endpoint:</strong> <code id="endpointUrl" style="color: #38bdf8;">http://127.0.0.1:5050/api/v1/chat/completions</code>
+    </div>
+
+    <!-- Language Snippets Tabs -->
+    <div style="display: flex; gap: 8px; margin-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 8px;">
+      <button type="button" class="tab-btn active" onclick="switchSnippetTab('curl')" id="tab-curl" style="padding: 6px 14px; border-radius: 6px; background: #1e293b; color: #fff; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; font-size: 0.82rem; font-weight: 600;">cURL</button>
+      <button type="button" class="tab-btn" onclick="switchSnippetTab('python')" id="tab-python" style="padding: 6px 14px; border-radius: 6px; background: transparent; color: #94a3b8; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 600;">Python (Requests)</button>
+      <button type="button" class="tab-btn" onclick="switchSnippetTab('openai')" id="tab-openai" style="padding: 6px 14px; border-radius: 6px; background: transparent; color: #94a3b8; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 600;">OpenAI SDK</button>
+      <button type="button" class="tab-btn" onclick="switchSnippetTab('js')" id="tab-js" style="padding: 6px 14px; border-radius: 6px; background: transparent; color: #94a3b8; border: none; cursor: pointer; font-size: 0.82rem; font-weight: 600;">JavaScript (Fetch)</button>
+    </div>
+
+    <!-- Snippet Code Blocks -->
+    <div style="position: relative;">
+      <pre id="snippetCode" style="background: #020617; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 16px; color: #38bdf8; font-family: monospace; font-size: 0.82rem; overflow-x: auto; line-height: 1.5;"></pre>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="copySnippetCode()" style="position: absolute; top: 12px; right: 12px; font-size: 0.75rem;">
+        📋 Copy Code
+      </button>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; margin-top: 18px;">
+      <button type="button" class="btn btn-secondary" onclick="closeApiModal()">Close</button>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let conversationHistory = [];
+let currentTab = 'curl';
+
+function toggleHardwarePanel() {
+  const panel = document.getElementById("hardwareConfigPanel");
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
+}
+
+function onDeviceChange() {
+  // Can provide visual feedback
+}
+
+async function handleHardwareSubmit(e) {
+  e.preventDefault();
+  const btn = document.getElementById("applyConfigBtn");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner" style="width:14px;height:14px;"></span> Applying...`;
+
+  const modelSlug = document.getElementById("modelSelect").value;
+  const isCuda = document.getElementById("radioCuda").checked;
+  const gpuLayers = parseInt(document.getElementById("gpuLayersInput").value) || 0;
+  const vramMb = parseInt(document.getElementById("vramInput").value) || 0;
+
+  try {
+    const res = await fetch("/api/v1/chat/active-model", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model_slug: modelSlug,
+        device_mode: isCuda ? "cuda" : "cpu",
+        gpu_layers: gpuLayers,
+        vram_mb: vramMb
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById("activeModelTitle").innerText = data.config.active_model_slug;
+      document.getElementById("deviceBadge").innerText = data.config.device_mode.toUpperCase();
+      
+      const layersBadge = document.getElementById("gpuLayersBadge");
+      if (layersBadge) layersBadge.innerText = `${data.config.gpu_layers} GPU Layers`;
+      
+      const vramBadge = document.getElementById("vramBadge");
+      if (vramBadge) vramBadge.innerText = `${data.config.vram_mb} MB V-RAM`;
+
+      toggleHardwarePanel();
+      appendSystemNotification(`Hardware updated: Model <strong>${data.config.active_model_slug}</strong> activated on <strong>${data.config.device_mode.toUpperCase()}</strong>.`);
+    } else {
+      alert("Error: " + (data.detail || "Failed to switch model"));
+    }
+  } catch (err) {
+    alert("Connection error: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<span>💾 Apply & Switch Active Model</span>`;
+  }
+}
+
+function handleTextareaKeydown(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById("chatForm").requestSubmit();
+  }
+}
+
+async function handleChatSubmit(e) {
+  e.preventDefault();
+  const input = document.getElementById("promptInput");
+  const prompt = input.value.trim();
+  if (!prompt) return;
+
+  // Append user bubble
+  appendUserMessage(prompt);
+  conversationHistory.push({ role: "user", content: prompt });
+  input.value = "";
+
+  const sendBtn = document.getElementById("sendBtn");
+  sendBtn.disabled = true;
+  document.getElementById("typingIndicator").style.display = "flex";
+  scrollChatToBottom();
+
+  try {
+    const res = await fetch("/api/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: conversationHistory,
+        temperature: 0.7,
+        max_tokens: 512
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.choices && data.choices.length > 0) {
+      const reply = data.choices[0].message.content;
+      conversationHistory.push({ role: "assistant", content: reply });
+      appendAssistantMessage(reply, data.hardware, data.usage);
+    } else {
+      appendErrorMessage(data.detail || data.error || "Model inference failed");
+    }
+  } catch (err) {
+    appendErrorMessage("Network error: " + err.message);
+  } finally {
+    sendBtn.disabled = false;
+    document.getElementById("typingIndicator").style.display = "none";
+    scrollChatToBottom();
+  }
+}
+
+function appendUserMessage(text) {
+  const container = document.getElementById("chatMessages");
+  const msgDiv = document.createElement("div");
+  msgDiv.className = "chat-message user-message";
+  msgDiv.style.cssText = "display: flex; gap: 14px; max-width: 85%; align-self: flex-end; flex-direction: row-reverse;";
+
+  msgDiv.innerHTML = `
+    <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #3b82f6, #06b6d4); display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 700; flex-shrink: 0;">
+      {{ current_user.username[:1].upper() }}
+    </div>
+    <div>
+      <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-bottom: 4px;">
+        <span style="font-weight: 600; font-size: 0.85rem; color: #38bdf8;">You</span>
+      </div>
+      <div class="message-bubble" style="background: linear-gradient(135deg, #1e3a8a, #2563eb); border: 1px solid rgba(255, 255, 255, 0.15); padding: 12px 16px; border-radius: 12px; color: #fff; font-size: 0.92rem; line-height: 1.5; word-break: break-word;">
+        ${escapeHtml(text)}
+      </div>
+    </div>
+  `;
+  container.appendChild(msgDiv);
+}
+
+function appendAssistantMessage(text, hardware, usage) {
+  const container = document.getElementById("chatMessages");
+  const msgDiv = document.createElement("div");
+  msgDiv.className = "chat-message assistant-message";
+  msgDiv.style.cssText = "display: flex; gap: 14px; max-width: 85%; align-self: flex-start;";
+
+  const elapsed = hardware ? hardware.elapsed_seconds : 0;
+  const device = hardware ? hardware.device.toUpperCase() : "CPU";
+  const tokens = usage ? usage.completion_tokens : 0;
+
+  msgDiv.innerHTML = `
+    <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #a855f7); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;">
+      🤖
+    </div>
+    <div style="flex: 1;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+        <span style="font-weight: 600; font-size: 0.85rem; color: #818cf8;">Local Assistant</span>
+        <span style="font-size: 0.72rem; color: #64748b;">${device} • ${elapsed}s • ${tokens} tokens</span>
+      </div>
+      <div class="message-bubble" style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); padding: 14px 18px; border-radius: 12px; color: #f1f5f9; font-size: 0.92rem; line-height: 1.55; word-break: break-word; white-space: pre-wrap;">${escapeHtml(text)}</div>
+    </div>
+  `;
+  container.appendChild(msgDiv);
+}
+
+function appendErrorMessage(msg) {
+  const container = document.getElementById("chatMessages");
+  const errDiv = document.createElement("div");
+  errDiv.style.cssText = "padding: 10px 16px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; color: #fca5a5; font-size: 0.85rem; align-self: center;";
+  errDiv.innerHTML = `⚠️ <strong>Inference Error:</strong> ${escapeHtml(msg)}`;
+  container.appendChild(errDiv);
+}
+
+function appendSystemNotification(html) {
+  const container = document.getElementById("chatMessages");
+  const sysDiv = document.createElement("div");
+  sysDiv.style.cssText = "padding: 8px 14px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; color: #c7d2fe; font-size: 0.8rem; align-self: center;";
+  sysDiv.innerHTML = `⚙️ ${html}`;
+  container.appendChild(sysDiv);
+  scrollChatToBottom();
+}
+
+function clearChatHistory() {
+  conversationHistory = [];
+  const container = document.getElementById("chatMessages");
+  container.innerHTML = `
+    <div class="chat-message assistant-message" style="display: flex; gap: 14px; max-width: 85%;">
+      <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #a855f7); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;">
+        🤖
+      </div>
+      <div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <span style="font-weight: 600; font-size: 0.85rem; color: #818cf8;">Local Assistant</span>
+        </div>
+        <div class="message-bubble" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.08); padding: 14px 18px; border-radius: 12px; color: #f1f5f9; font-size: 0.92rem;">
+          Chat history cleared. Active model is ready for your instructions!
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function scrollChatToBottom() {
+  const container = document.getElementById("chatMessages");
+  container.scrollTop = container.scrollHeight;
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/* EXTERNAL API SNIPPETS */
+function openApiModal() {
+  document.getElementById("apiModal").style.display = "flex";
+  updateCodeSnippets();
+}
+
+function closeApiModal() {
+  document.getElementById("apiModal").style.display = "none";
+}
+
+function switchSnippetTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll(".tab-btn").forEach(b => {
+    b.style.background = "transparent";
+    b.style.color = "#94a3b8";
+    b.style.border = "none";
+  });
+  const activeBtn = document.getElementById(`tab-${tab}`);
+  activeBtn.style.background = "#1e293b";
+  activeBtn.style.color = "#fff";
+  activeBtn.style.border = "1px solid rgba(255,255,255,0.1)";
+  updateCodeSnippets();
+}
+
+function updateCodeSnippets() {
+  const apiKey = document.getElementById("snippetApiKeySelect").value;
+  const host = window.location.origin || "http://127.0.0.1:5050";
+  const endpoint = `${host}/api/v1/chat/completions`;
+  const codePre = document.getElementById("snippetCode");
+
+  if (currentTab === 'curl') {
+    codePre.innerText = `curl -X POST "${endpoint}" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Hello from outside the app!"}
+    ],
+    "temperature": 0.7
+  }'`;
+  } else if (currentTab === 'python') {
+    codePre.innerText = `import requests
+
+url = "${endpoint}"
+headers = {
+    "Authorization": "Bearer ${apiKey}",
+    "Content-Type": "application/json"
+}
+payload = {
+    "messages": [
+        {"role": "user", "content": "Explain quantum computing in one sentence."}
+    ],
+    "temperature": 0.7,
+    "max_tokens": 256
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json()["choices"][0]["message"]["content"])`;
+  } else if (currentTab === 'openai') {
+    codePre.innerText = `from openai import OpenAI
+
+# Direct OpenAI client to this local FastAPI backend
+client = OpenAI(
+    base_url="${host}/api/v1",
+    api_key="${apiKey}"
+)
+
+response = client.chat.completions.create(
+    model="local-model",
+    messages=[
+        {"role": "user", "content": "Write a fast Python quicksort function"}
+    ]
+)
+
+print(response.choices[0].message.content)`;
+  } else if (currentTab === 'js') {
+    codePre.innerText = `const response = await fetch("${endpoint}", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer ${apiKey}"
+  },
+  body: JSON.stringify({
+    messages: [{ role: "user", content: "Hello from external JavaScript!" }]
+  })
+});
+
+const data = await response.json();
+console.log(data.choices[0].message.content);`;
+  }
+}
+
+function copySnippetCode() {
+  const code = document.getElementById("snippetCode").innerText;
+  navigator.clipboard.writeText(code).then(() => {
+    alert("Code snippet copied to clipboard!");
+  });
+}
+</script>
+{% endblock %}

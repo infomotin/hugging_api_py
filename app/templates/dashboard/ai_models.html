@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Hugging Face Model Hub &amp; Local Repository{% endblock %}
-{% block header_title %}Hugging Face AI Model Hub{% endblock %}
+{% block header_title %}Hugging Face AI Model Hub &amp; GGUF Engine{% endblock %}
 
 {% block content %}
 <div style="display: flex; flex-direction: column; gap: 24px;">
@@ -24,7 +24,7 @@
       </div>
 
       <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 20px;">
-        Configure your Hugging Face User Access Token to download gated models, bypass rate limits, and access private repositories.
+        Configure your Hugging Face User Access Token to download GGUF models, bypass rate limits, and access private repositories.
       </p>
 
       {% if hf_status.valid %}
@@ -67,114 +67,150 @@
       </div>
 
       <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 20px;">
-        PyTorch runtime engine state and local weights repository configuration.
+        Local storage subfolder, GGUF quants, and PyTorch runtime engine.
       </p>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
-        <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-          <div style="font-size: 0.75rem; color: var(--text-dim);">PyTorch Version</div>
-          <div style="font-weight: 700; color: #fff; font-size: 1.1rem; margin-top: 2px;">{{ telemetry.torch_version }}</div>
-        </div>
-
-        <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-          <div style="font-size: 0.75rem; color: var(--text-dim);">Hardware Accelerator</div>
-          <div style="font-weight: 700; color: #38bdf8; font-size: 1.1rem; margin-top: 2px;">{{ telemetry.device|upper }}</div>
-        </div>
-
         <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
           <div style="font-size: 0.75rem; color: var(--text-dim);">Stored Local Models</div>
           <div style="font-weight: 700; color: #c084fc; font-size: 1.1rem; margin-top: 2px;">{{ local_models|length }}</div>
         </div>
 
         <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+          <div style="font-size: 0.75rem; color: var(--text-dim);">GGUF Models</div>
+          <div style="font-weight: 700; color: #38bdf8; font-size: 1.1rem; margin-top: 2px;">{{ telemetry.gguf_models_count or 0 }}</div>
+        </div>
+
+        <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
+          <div style="font-size: 0.75rem; color: var(--text-dim);">Hardware Device</div>
+          <div style="font-weight: 700; color: #34d399; font-size: 1.1rem; margin-top: 2px;">{{ telemetry.device|upper }}</div>
+        </div>
+
+        <div style="background: rgba(15, 23, 42, 0.6); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
           <div style="font-size: 0.75rem; color: var(--text-dim);">Storage Subfolder</div>
-          <div style="font-weight: 600; color: #34d399; font-size: 0.85rem; margin-top: 4px; font-family: monospace;">AIModel/model/</div>
+          <div style="font-weight: 600; color: #a5b4fc; font-size: 0.85rem; margin-top: 4px; font-family: monospace;">AIModel/model/</div>
         </div>
       </div>
 
-      <div style="font-size: 0.8rem; color: var(--text-muted); padding: 10px; background: rgba(99, 102, 241, 0.08); border-radius: var(--radius-sm); border: 1px solid rgba(99, 102, 241, 0.2);">
-        📁 Models are stored offline under <code>AIModel/model/&lt;model_id&gt;</code> for instant execution without network dependency.
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-sm btn-secondary" onclick="openModal('uploadModal')" style="flex: 1;">
+          📤 Upload From Local Machine
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- Section 2: Download AI Model from Hugging Face -->
+  <!-- Section 2: Download AI Model from Hugging Face (With GGUF & Dropdown) -->
   <div class="glass-card" style="padding: 26px;">
-    <div style="margin-bottom: 20px;">
-      <h3 style="font-size: 1.25rem;">📥 Download AI Model from Hugging Face</h3>
-      <p style="color: var(--text-muted); font-size: 0.875rem;">
-        Select a recommended lightweight model or input any model repository ID from huggingface.co. Downloaded models are placed into <code>AIModel/model/</code>.
-      </p>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+      <div>
+        <h3 style="font-size: 1.25rem;">📥 Download AI Model from Hugging Face (GGUF &amp; Transformers)</h3>
+        <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 4px;">
+          Select from the dropdown or search live repositories. Downloaded models are placed into <code>AIModel/model/</code>.
+        </p>
+      </div>
+      <button type="button" class="btn btn-sm btn-secondary" onclick="openModal('uploadModal')">
+        📤 Upload .GGUF File
+      </button>
     </div>
 
-    <!-- Quick 1-Click Lightweight Presets -->
-    <div style="margin-bottom: 24px;">
-      <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-dim); font-weight: 700; margin-bottom: 10px;">
-        Curated Lightweight Models (Fast Download &amp; Low RAM)
+    <!-- Live Hugging Face Search & Dropdown Loader -->
+    <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 18px; margin-bottom: 24px;">
+      <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); font-weight: 700; margin-bottom: 12px;">
+        1. Select Model From Dropdown List OR Search Hugging Face
       </div>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px;">
-        
-        <!-- Preset 1: BERT Tiny -->
-        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px; cursor: pointer; transition: all 0.2s ease;"
-             onclick="selectPreset('prajjwal1/bert-tiny')">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-            <strong style="color: #38bdf8; font-size: 0.95rem;">BERT Tiny</strong>
-            <span class="badge badge-success" style="font-size: 0.7rem;">~17 MB</span>
-          </div>
-          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">prajjwal1/bert-tiny</div>
-          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 6px;">Ultra-fast sequence classification &amp; embeddings</div>
+
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px;">
+        <!-- Dropdown List -->
+        <div>
+          <label class="form-label">Pre-loaded Hugging Face Model Repositories</label>
+          <select id="modelDropdownSelect" class="form-select" onchange="handleDropdownChange(this)">
+            <option value="">-- Choose a Model to Load into Repository ID --</option>
+            
+            <optgroup label="🚀 GGUF Quantized Models (Lightweight / LLM / llama.cpp)">
+              <option value="Qwen/Qwen2.5-0.5B-Instruct-GGUF" data-file="qwen2.5-0.5b-instruct-q4_k_m.gguf" data-gguf="true">
+                Qwen/Qwen2.5-0.5B-Instruct-GGUF (Q4_K_M ~390 MB)
+              </option>
+              <option value="unsloth/Qwen2.5-0.5B-Instruct-GGUF" data-file="qwen2.5-0.5b-instruct-q8_0.gguf" data-gguf="true">
+                unsloth/Qwen2.5-0.5B-Instruct-GGUF (Q8_0 ~530 MB)
+              </option>
+              <option value="TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF" data-file="tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf" data-gguf="true">
+                TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF (Q4_K_M ~669 MB)
+              </option>
+              <option value="bartowski/Llama-3.2-1B-Instruct-GGUF" data-file="Llama-3.2-1B-Instruct-Q4_K_M.gguf" data-gguf="true">
+                bartowski/Llama-3.2-1B-Instruct-GGUF (Q4_K_M ~740 MB)
+              </option>
+              <option value="TheBloke/phi-2-GGUF" data-file="phi-2.Q4_K_M.gguf" data-gguf="true">
+                TheBloke/phi-2-GGUF (Q4_K_M ~1.7 GB)
+              </option>
+            </optgroup>
+
+            <optgroup label="⚡ Lightweight Transformers Models (&lt; 250 MB)">
+              <option value="prajjwal1/bert-tiny" data-file="" data-gguf="false">
+                prajjwal1/bert-tiny (Ultra-lightweight ~17 MB)
+              </option>
+              <option value="google/electra-small-discriminator" data-file="" data-gguf="false">
+                google/electra-small-discriminator (~54 MB)
+              </option>
+              <option value="sentence-transformers/all-MiniLM-L6-v2" data-file="" data-gguf="false">
+                sentence-transformers/all-MiniLM-L6-v2 (~80 MB Embeddings)
+              </option>
+              <option value="distilbert/distilbert-base-uncased-finetuned-sst-2-english" data-file="" data-gguf="false">
+                distilbert/distilbert-base-uncased-finetuned-sst-2-english (~250 MB Sentiment)
+              </option>
+            </optgroup>
+          </select>
         </div>
 
-        <!-- Preset 2: Electra Small -->
-        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px; cursor: pointer; transition: all 0.2s ease;"
-             onclick="selectPreset('google/electra-small-discriminator')">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-            <strong style="color: #c084fc; font-size: 0.95rem;">Electra Small</strong>
-            <span class="badge badge-manager" style="font-size: 0.7rem;">~54 MB</span>
+        <!-- Dynamic Live Search -->
+        <div>
+          <label class="form-label">Search Hugging Face Hub (Live API)</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="hfSearchInput" class="form-control" placeholder="e.g. gguf, qwen, llama...">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="searchHuggingFaceHub()">
+              Search
+            </button>
           </div>
-          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">google/electra-small-discriminator</div>
-          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 6px;">Compact, high-throughput transformer architecture</div>
         </div>
-
-        <!-- Preset 3: MiniLM Embeddings -->
-        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px; cursor: pointer; transition: all 0.2s ease;"
-             onclick="selectPreset('sentence-transformers/all-MiniLM-L6-v2')">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-            <strong style="color: #34d399; font-size: 0.95rem;">all-MiniLM-L6</strong>
-            <span class="badge badge-manager" style="font-size: 0.7rem;">~80 MB</span>
-          </div>
-          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">sentence-transformers/all-MiniLM-L6-v2</div>
-          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 6px;">Top-tier semantic text embeddings &amp; search</div>
-        </div>
-
-        <!-- Preset 4: DistilBERT Sentiment -->
-        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px; cursor: pointer; transition: all 0.2s ease;"
-             onclick="selectPreset('distilbert/distilbert-base-uncased-finetuned-sst-2-english')">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-            <strong style="color: #fbbf24; font-size: 0.95rem;">DistilBERT Sentiment</strong>
-            <span class="badge badge-admin" style="font-size: 0.7rem;">~250 MB</span>
-          </div>
-          <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">distilbert/...-finetuned-sst-2-english</div>
-          <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 6px;">State-of-the-art sentiment &amp; emotion analysis</div>
-        </div>
-
       </div>
     </div>
 
     <!-- Download Form -->
     <form id="downloadModelForm" method="POST" action="/dashboard/ai-models/download" onsubmit="showDownloadingIndicator()">
-      <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-        <div style="flex: 1; min-width: 280px;">
+      <div style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); font-weight: 700; margin-bottom: 12px;">
+        2. Configure &amp; Download to AIModel/model/
+      </div>
+
+      <div style="display: grid; grid-template-columns: 2fr 1.5fr auto; gap: 14px; align-items: flex-end; margin-bottom: 16px;">
+        <!-- Repository ID -->
+        <div>
           <label class="form-label" for="model_id_input">Hugging Face Model Repository ID</label>
-          <input type="text" id="model_id_input" name="model_id" class="form-control" placeholder="e.g. prajjwal1/bert-tiny" required style="font-family: monospace;">
+          <input type="text" id="model_id_input" name="model_id" class="form-control" placeholder="e.g. Qwen/Qwen2.5-0.5B-Instruct-GGUF" required style="font-family: monospace;">
         </div>
-        <button type="submit" id="downloadSubmitBtn" class="btn btn-primary" style="padding: 12px 24px;">
+
+        <!-- Optional GGUF Filename -->
+        <div>
+          <label class="form-label" for="filename_input">Specific File (.gguf / weights) <span style="color: var(--text-dim); font-size: 0.75rem;">(Optional)</span></label>
+          <input type="text" id="filename_input" name="filename" class="form-control" placeholder="e.g. qwen2.5-0.5b-instruct-q4_k_m.gguf" style="font-family: monospace;">
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" id="downloadSubmitBtn" class="btn btn-primary" style="padding: 12px 24px; white-space: nowrap;">
           Download to AIModel/model &rarr;
         </button>
       </div>
-      <div id="downloadIndicator" style="display: none; margin-top: 14px; color: #38bdf8; font-size: 0.85rem; align-items: center; gap: 8px;">
+
+      <!-- GGUF Checkbox Option -->
+      <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-muted); cursor: pointer;">
+          <input type="checkbox" id="is_gguf_checkbox" name="is_gguf" value="true" style="accent-color: var(--accent-cyan);">
+          <span>GGUF Model Format (Download <code>*.gguf</code> quantization files)</span>
+        </label>
+      </div>
+
+      <div id="downloadIndicator" style="display: none; margin-top: 16px; color: #38bdf8; font-size: 0.85rem; align-items: center; gap: 10px; background: rgba(6, 182, 212, 0.1); padding: 12px; border-radius: var(--radius-md);">
         <span class="badge badge-manager" style="animation: pulse 1s infinite;">Downloading</span>
-        <span>Fetching model weights and tokenizer from Hugging Face Hub. Please wait...</span>
+        <span>Downloading model weights directly into <code>AIModel/model/</code>. This may take a few moments depending on model size...</span>
       </div>
     </form>
   </div>
@@ -184,9 +220,16 @@
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
       <div>
         <h3 style="font-size: 1.25rem;">📂 Stored Local Models Catalog</h3>
-        <p style="color: var(--text-muted); font-size: 0.875rem;">Models currently downloaded and available inside <code>AIModel/model/</code> directory.</p>
+        <p style="color: var(--text-muted); font-size: 0.875rem;">
+          Models available on disk inside <code>AIModel/model/</code>. Ready for PyTorch or GGUF execution.
+        </p>
       </div>
-      <span class="badge badge-success">{{ local_models|length }} Models Stored</span>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button class="btn btn-sm btn-secondary" onclick="openModal('uploadModal')">
+          + Upload Local Model
+        </button>
+        <span class="badge badge-success">{{ local_models|length }} Models Stored</span>
+      </div>
     </div>
 
     <div class="table-container">
@@ -194,6 +237,7 @@
         <thead>
           <tr>
             <th>Model ID / Repository</th>
+            <th>Format</th>
             <th>Local Directory</th>
             <th>Disk Size</th>
             <th>Files</th>
@@ -207,12 +251,26 @@
           <tr>
             <td>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 1.1rem;">🤖</span>
+                <span style="font-size: 1.1rem;">{% if m.is_gguf %}💎{% else %}🤖{% endif %}</span>
                 <div>
                   <strong style="color: #fff;">{{ m.model_id }}</strong>
                   <div style="font-size: 0.75rem; color: var(--text-dim);">slug: {{ m.slug }}</div>
+                  {% if m.gguf_files %}
+                    <div style="font-size: 0.7rem; color: var(--accent-cyan); font-family: monospace;">{{ m.gguf_files[0] }}</div>
+                  {% endif %}
                 </div>
               </div>
+            </td>
+            <td>
+              {% if m.is_gguf %}
+                <span class="badge badge-manager" style="background: rgba(6, 182, 212, 0.2); color: #22d3ee; border: 1px solid rgba(6, 182, 212, 0.4);">
+                  GGUF (.gguf)
+                </span>
+              {% else %}
+                <span class="badge badge-admin" style="font-size: 0.7rem;">
+                  PyTorch
+                </span>
+              {% endif %}
             </td>
             <td>
               <code style="color: #a5b4fc; font-size: 0.8rem; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">
@@ -237,10 +295,10 @@
             </td>
             <td style="text-align: right;">
               <div style="display: inline-flex; align-items: center; gap: 8px;">
-                <button class="btn btn-sm btn-secondary" onclick="openTestModal('{{ m.slug }}', '{{ m.model_id }}')">
+                <button class="btn btn-sm btn-secondary" onclick="openTestModal('{{ m.slug }}', '{{ m.model_id }}', {{ 'true' if m.is_gguf else 'false' }})">
                   Test 🚀
                 </button>
-                <form method="POST" action="/dashboard/ai-models/{{ m.slug }}/delete" style="display: inline;" onsubmit="return confirm('Delete model weights for {{ m.model_id }} from disk?');">
+                <form method="POST" action="/dashboard/ai-models/{{ m.slug }}/delete" style="display: inline;" onsubmit="return confirm('Delete model {{ m.model_id }} from disk?');">
                   <button type="submit" class="btn btn-sm btn-danger">
                     Delete
                   </button>
@@ -250,8 +308,8 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="7" style="text-align: center; padding: 36px; color: var(--text-muted);">
-              No models downloaded yet. Use the presets above or enter a model ID to download into <code>AIModel/model/</code>.
+            <td colspan="8" style="text-align: center; padding: 36px; color: var(--text-muted);">
+              No models stored yet. Use the dropdown above or upload a model from your machine into <code>AIModel/model/</code>.
             </td>
           </tr>
           {% endfor %}
@@ -262,7 +320,42 @@
 
 </div>
 
-<!-- Modal: Test Downloaded Model -->
+<!-- Modal 1: Upload Model from Local Machine -->
+<div id="uploadModal" class="modal-overlay">
+  <div class="modal-box">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h3 style="font-size: 1.25rem;">📤 Upload Model from Local Machine</h3>
+      <button type="button" onclick="closeModal('uploadModal')" style="background:none; border:none; color:var(--text-muted); font-size:1.4rem; cursor:pointer;">&times;</button>
+    </div>
+
+    <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 20px;">
+      Upload a <code>.gguf</code>, <code>.safetensors</code>, <code>.bin</code>, <code>.onnx</code>, or <code>.zip</code> archive directly from your local computer into <code>AIModel/model/</code>.
+    </p>
+
+    <form method="POST" action="/dashboard/ai-models/upload" enctype="multipart/form-data" onsubmit="showUploadIndicator()">
+      <div class="form-group">
+        <label class="form-label">Select Model File on Your Computer</label>
+        <input type="file" name="model_file" class="form-control" accept=".gguf,.bin,.safetensors,.onnx,.pt,.zip" required style="padding: 10px;">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Custom Folder Name (Optional)</label>
+        <input type="text" name="custom_name" class="form-control" placeholder="e.g. my-custom-llama-gguf">
+      </div>
+
+      <div id="uploadIndicator" style="display: none; margin-bottom: 16px; color: #38bdf8; font-size: 0.85rem;">
+        Uploading file to server and saving into <code>AIModel/model/</code>...
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('uploadModal')">Cancel</button>
+        <button type="submit" id="uploadSubmitBtn" class="btn btn-primary">Upload Model</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal 2: Test Downloaded Model -->
 <div id="testModelModal" class="modal-overlay">
   <div class="modal-box">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -271,13 +364,13 @@
     </div>
 
     <div style="margin-bottom: 16px;">
-      <div style="font-size: 0.8rem; color: var(--text-dim);">Testing local directory:</div>
+      <div style="font-size: 0.8rem; color: var(--text-dim);">Target local directory:</div>
       <strong id="modalTestModelSlug" style="color: #38bdf8; font-family: monospace;"></strong>
     </div>
 
     <div class="form-group">
       <label class="form-label">Sample Input Text</label>
-      <textarea id="modalTestInputText" class="form-control" rows="3" placeholder="Enter a sentence to test...">FastAPI and Hugging Face local pipelines are extraordinarily efficient!</textarea>
+      <textarea id="modalTestInputText" class="form-control" rows="3" placeholder="Enter a sentence to test...">FastAPI, GGUF, and Hugging Face local pipelines are exceptionally fast!</textarea>
     </div>
 
     <button type="button" class="btn btn-primary" onclick="runLocalModelInference()">
@@ -286,7 +379,7 @@
 
     <div id="modalTestResult" style="margin-top: 18px; display: none;">
       <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 6px;">Inference Result:</div>
-      <pre class="code-response" id="modalTestResultContent" style="max-height: 160px;"></pre>
+      <pre class="code-response" id="modalTestResultContent" style="max-height: 180px;"></pre>
     </div>
   </div>
 </div>
@@ -294,9 +387,61 @@
 
 {% block scripts %}
 <script>
-  function selectPreset(modelId) {
+  function handleDropdownChange(selectEl) {
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+    const modelId = selectedOption.value;
+    if (!modelId) return;
+
+    const fileName = selectedOption.getAttribute('data-file') || '';
+    const isGguf = selectedOption.getAttribute('data-gguf') === 'true';
+
     document.getElementById('model_id_input').value = modelId;
-    document.getElementById('model_id_input').focus();
+    document.getElementById('filename_input').value = fileName;
+    document.getElementById('is_gguf_checkbox').checked = isGguf;
+  }
+
+  async function searchHuggingFaceHub() {
+    const q = document.getElementById('hfSearchInput').value.trim();
+    if (!q) return;
+
+    const selectEl = document.getElementById('modelDropdownSelect');
+    const prevText = selectEl.options[0].text;
+    selectEl.options[0].text = 'Searching Hugging Face Hub...';
+
+    try {
+      const res = await fetch(`/api/v1/ai/hf-search?query=${encodeURIComponent(q)}&limit=15`);
+      const results = await res.json();
+
+      if (results && results.length > 0) {
+        let dynamicGroup = document.getElementById('dynamicSearchGroup');
+        if (!dynamicGroup) {
+          dynamicGroup = document.createElement('optgroup');
+          dynamicGroup.id = 'dynamicSearchGroup';
+          selectEl.prepend(dynamicGroup);
+        }
+        dynamicGroup.label = `🔍 Search Results for "${q}" (${results.length} found)`;
+        dynamicGroup.innerHTML = '';
+
+        results.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m.id;
+          opt.text = `${m.id} (${m.is_gguf ? 'GGUF' : m.pipeline_tag} • ${m.downloads} downloads)`;
+          opt.setAttribute('data-gguf', m.is_gguf ? 'true' : 'false');
+          opt.setAttribute('data-file', '');
+          dynamicGroup.appendChild(opt);
+        });
+
+        selectEl.selectedIndex = 1;
+        handleDropdownChange(selectEl);
+        selectEl.options[0].text = '-- Choose a Model to Load into Repository ID --';
+      } else {
+        alert('No models found matching: ' + q);
+        selectEl.options[0].text = prevText;
+      }
+    } catch (e) {
+      alert('Error querying Hugging Face API: ' + e.message);
+      selectEl.options[0].text = prevText;
+    }
   }
 
   function showDownloadingIndicator() {
@@ -305,11 +450,17 @@
     document.getElementById('downloadSubmitBtn').innerText = 'Downloading...';
   }
 
+  function showUploadIndicator() {
+    document.getElementById('uploadIndicator').style.display = 'block';
+    document.getElementById('uploadSubmitBtn').disabled = true;
+    document.getElementById('uploadSubmitBtn').innerText = 'Uploading...';
+  }
+
   let activeTestSlug = '';
 
-  function openTestModal(slug, modelId) {
+  function openTestModal(slug, modelId, isGguf) {
     activeTestSlug = slug;
-    document.getElementById('modalTestModelSlug').innerText = 'AIModel/model/' + slug;
+    document.getElementById('modalTestModelSlug').innerText = 'AIModel/model/' + slug + (isGguf ? ' (GGUF Format)' : '');
     document.getElementById('modalTestResult').style.display = 'none';
     openModal('testModelModal');
   }
@@ -321,7 +472,7 @@
     const resultBox = document.getElementById('modalTestResult');
     const contentBox = document.getElementById('modalTestResultContent');
     resultBox.style.display = 'block';
-    contentBox.innerHTML = '<span style="color: #94a3b8;">Running inference using PyTorch...</span>';
+    contentBox.innerHTML = '<span style="color: #94a3b8;">Running inference using local model...</span>';
 
     try {
       const res = await fetch('/api/v1/ai/models/test', {
