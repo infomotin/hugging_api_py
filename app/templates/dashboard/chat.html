@@ -174,11 +174,41 @@
           <div class="message-bubble" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.08); padding: 14px 18px; border-radius: 12px; color: #f1f5f9; font-size: 0.92rem; line-height: 1.55;">
             Welcome to the <strong>Enterprise AI Chat Studio</strong>!<br><br>
             Current active model is <code>{{ engine_status.active_model_slug }}</code> running on <strong>{{ engine_status.device_mode.upper() }}</strong>. 
-            All prompt processing and weight calculations run securely on this server.<br><br>
-            Type your prompt below or use your <strong>External API Keys</strong> to query this server from outside scripts, ChatGPT plugins, or custom webapps!
+            All conversation turns are automatically saved to your PostgreSQL database.
           </div>
         </div>
       </div>
+
+      <!-- Render Stored Database History -->
+      {% for msg in chat_history %}
+      {% if msg.role == 'user' %}
+      <div class="chat-message user-message" style="display: flex; gap: 14px; max-width: 85%; align-self: flex-end; flex-direction: row-reverse;">
+        <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #3b82f6, #06b6d4); display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 700; flex-shrink: 0;">
+          {{ current_user.username[:1].upper() }}
+        </div>
+        <div>
+          <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-bottom: 4px;">
+            <span style="font-weight: 600; font-size: 0.85rem; color: #38bdf8;">You</span>
+            <span style="font-size: 0.72rem; color: #64748b;">{{ msg.created_at.strftime('%H:%M:%S') if msg.created_at else '' }}</span>
+          </div>
+          <div class="message-bubble" style="background: linear-gradient(135deg, #1e3a8a, #2563eb); border: 1px solid rgba(255, 255, 255, 0.15); padding: 12px 16px; border-radius: 12px; color: #fff; font-size: 0.92rem; line-height: 1.5; word-break: break-word; white-space: pre-wrap;">{{ msg.content }}</div>
+        </div>
+      </div>
+      {% else %}
+      <div class="chat-message assistant-message" style="display: flex; gap: 14px; max-width: 85%; align-self: flex-start;">
+        <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #a855f7); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0;">
+          🤖
+        </div>
+        <div style="flex: 1;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <span style="font-weight: 600; font-size: 0.85rem; color: #818cf8;">{{ msg.model or 'Local Assistant' }}</span>
+            <span style="font-size: 0.72rem; color: #64748b;">{{ msg.device.upper() if msg.device else 'CPU' }} • {{ msg.tokens }} tokens • {{ msg.created_at.strftime('%H:%M:%S') if msg.created_at else '' }}</span>
+          </div>
+          <div class="message-bubble" style="background: rgba(30, 41, 59, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); padding: 14px 18px; border-radius: 12px; color: #f1f5f9; font-size: 0.92rem; line-height: 1.55; word-break: break-word; white-space: pre-wrap;">{{ msg.content }}</div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
 
     </div>
 
@@ -273,8 +303,16 @@
 
 {% block scripts %}
 <script>
-let conversationHistory = [];
+let conversationHistory = [
+  {% for msg in chat_history %}
+  { role: "{{ msg.role }}", content: {{ msg.content | tojson }} },
+  {% endfor %}
+];
 let currentTab = 'curl';
+
+document.addEventListener("DOMContentLoaded", () => {
+  scrollChatToBottom();
+});
 
 function toggleHardwarePanel() {
   const panel = document.getElementById("hardwareConfigPanel");
@@ -446,7 +484,13 @@ function appendSystemNotification(html) {
   scrollChatToBottom();
 }
 
-function clearChatHistory() {
+async function clearChatHistory() {
+  if (!confirm("Are you sure you want to clear your chat history from the database?")) return;
+  try {
+    await fetch("/api/v1/chat/history", { method: "DELETE" });
+  } catch (err) {
+    console.error("Error clearing database chat history:", err);
+  }
   conversationHistory = [];
   const container = document.getElementById("chatMessages");
   container.innerHTML = `
@@ -459,7 +503,7 @@ function clearChatHistory() {
           <span style="font-weight: 600; font-size: 0.85rem; color: #818cf8;">Local Assistant</span>
         </div>
         <div class="message-bubble" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.08); padding: 14px 18px; border-radius: 12px; color: #f1f5f9; font-size: 0.92rem;">
-          Chat history cleared. Active model is ready for your instructions!
+          Chat history cleared from database. Active model is ready for your instructions!
         </div>
       </div>
     </div>

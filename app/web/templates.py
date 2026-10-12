@@ -21,6 +21,7 @@ ROUTE_MAP = {
     "dashboard.chat": "/dashboard/chat",
     "dashboard.api_keys": "/dashboard/api-keys",
     "dashboard.fine_tuning": "/dashboard/fine-tuning",
+    "dashboard.hf_studio": "/dashboard/hf-studio",
 }
 
 def render_template(template_name: str, request: Request, context: dict = None):

@@ -1,0 +1,673 @@
+{% extends "base.html" %}
+
+{% block title %}Hugging Face Central Workstation — Enterprise AI{% endblock %}
+{% block header_title %}Hugging Face Central Workstation{% endblock %}
+
+{% block content %}
+<div class="hf-studio-container" style="display: flex; flex-direction: column; gap: 22px;">
+
+  <!-- TOP WORKSTATION STATUS BAR -->
+  <div class="card" style="padding: 22px 26px; background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(14px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.36);">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+      
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(135deg, #f59e0b, #ec4899); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; box-shadow: 0 0 25px rgba(245, 158, 11, 0.4);">
+          🤗
+        </div>
+        <div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <h2 style="margin: 0; font-size: 1.35rem; font-weight: 700; color: #f8fafc;">
+              Hugging Face Central Workstation
+            </h2>
+            {% if hf_status.valid %}
+            <span class="badge badge-success" style="font-size: 0.75rem;">● Connected: @{{ hf_status.username }}</span>
+            {% else %}
+            <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.75rem;">Community Mode</span>
+            {% endif %}
+          </div>
+          <p style="margin: 4px 0 0; color: #94a3b8; font-size: 0.85rem;">
+            Unified environment: Visual Drag & Drop Excel/Datasets, Interactive Notebook, Embedded CLI Inside, and Model Inference.
+          </p>
+        </div>
+      </div>
+
+      <!-- Resource Telemetry Pills -->
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <div style="padding: 6px 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; font-size: 0.78rem; color: #cbd5e1;">
+          Compute: <strong style="color: #38bdf8;">{{ specs.compute_device }}</strong>
+        </div>
+        <div style="padding: 6px 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; font-size: 0.78rem; color: #cbd5e1;">
+          PyTorch: <strong style="color: #a855f7;">v{{ specs.pytorch_version }}</strong>
+        </div>
+        <div style="padding: 6px 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; font-size: 0.78rem; color: #cbd5e1;">
+          Transformers: <strong style="color: #ec4899;">v{{ specs.transformers_version }}</strong>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- WORKSTATION NAVIGATION TABS -->
+    <div style="display: flex; gap: 10px; margin-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 16px; overflow-x: auto;">
+      <button type="button" class="studio-tab-btn active" onclick="switchStudioTab('datasets')" id="tab-btn-datasets" style="padding: 8px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; background: #1e293b; color: #fff; border: 1px solid rgba(255,255,255,0.15);">
+        <span>📁 Visual Drag & Drop & Excel Studio</span>
+      </button>
+
+      <button type="button" class="studio-tab-btn" onclick="switchStudioTab('notebook')" id="tab-btn-notebook" style="padding: 8px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; background: transparent; color: #94a3b8; border: none;">
+        <span>📓 AI / PyTorch Notebook</span>
+      </button>
+
+      <button type="button" class="studio-tab-btn" onclick="switchStudioTab('cli')" id="tab-btn-cli" style="padding: 8px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; background: transparent; color: #94a3b8; border: none;">
+        <span>💻 Hugging Face CLI Inside</span>
+      </button>
+
+      <button type="button" class="studio-tab-btn" onclick="switchStudioTab('models')" id="tab-btn-models" style="padding: 8px 18px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; background: transparent; color: #94a3b8; border: none;">
+        <span>💬 Model & Inference Hub</span>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- TAB 1: VISUAL DRAG & DROP & EXCEL MANIPULATION STUDIO -->
+  <div id="tab-pane-datasets" class="studio-pane" style="display: flex; flex-direction: column; gap: 20px;">
+    
+    <!-- Drag & Drop Upload Zone -->
+    <div id="dropZone" class="card" style="padding: 36px 24px; text-align: center; border: 2px dashed rgba(245, 158, 11, 0.4); background: rgba(15, 23, 42, 0.7); border-radius: 14px; cursor: pointer; transition: all 0.2s ease;" onclick="document.getElementById('datasetFileInput').click()">
+      <input type="file" id="datasetFileInput" accept=".xlsx,.xls,.csv,.json,.jsonl,.parquet" style="display: none;" onchange="handleFileSelected(this.files)">
+      <div style="font-size: 2.8rem; margin-bottom: 10px;">📊</div>
+      <h3 style="margin: 0; color: #f8fafc; font-size: 1.15rem; font-weight: 700;">
+        Drag & Drop Datasets or Excel Spreadsheets Here
+      </h3>
+      <p style="margin: 6px 0 14px; color: #94a3b8; font-size: 0.85rem;">
+        Supports Microsoft Excel (<code>.xlsx</code>, <code>.xls</code>), CSV (<code>.csv</code>), JSON, JSONL, and Parquet.
+      </p>
+      <button type="button" class="btn btn-secondary btn-sm" style="display: inline-flex; align-items: center; gap: 6px;">
+        <span>📁 Browse Files</span>
+      </button>
+    </div>
+
+    <!-- Dataset Workstation Table & Manipulation Bar (Visible after load) -->
+    <div id="datasetWorkspaceCard" class="card" style="display: none; padding: 0; overflow: hidden; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+      
+      <!-- Toolbar: Sheet selection, column rename, and actions -->
+      <div style="padding: 16px 22px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: rgba(17, 24, 39, 0.6); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px;">
+        
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div>
+            <div style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">Active File:</div>
+            <strong id="activeDatasetFilename" style="color: #38bdf8; font-family: monospace; font-size: 0.95rem;">--</strong>
+          </div>
+          
+          <!-- Excel Sheet Selector -->
+          <div id="sheetSelectorContainer" style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 0.8rem; color: #94a3b8;">Sheet:</span>
+            <select id="sheetSelect" class="form-input" style="padding: 4px 10px; font-size: 0.8rem;" onchange="onSheetChange()">
+              <option value="Sheet1">Sheet1</option>
+            </select>
+          </div>
+
+          <span id="rowCountBadge" class="badge badge-manager" style="font-size: 0.75rem;">0 Rows</span>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openRenameModal()" style="display: flex; align-items: center; gap: 6px;">
+            <span>✏️ Rename Column Headers</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="openFilterModal()" style="display: flex; align-items: center; gap: 6px;">
+            <span>🔍 Filter Data</span>
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="sendToFineTuning()" style="background: linear-gradient(135deg, #ec4899, #8b5cf6); font-weight: 600;">
+            <span>🎯 Send to Fine-Tuning Studio</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Table View -->
+      <div style="max-height: 400px; overflow: auto;">
+        <table id="datasetDataTable" style="width: 100%; border-collapse: collapse; font-size: 0.82rem; text-align: left;">
+          <thead style="background: rgba(30, 41, 59, 0.8); position: sticky; top: 0; z-index: 2;">
+            <tr id="datasetTheadRow" style="border-bottom: 1px solid rgba(255, 255, 255, 0.1); color: #94a3b8;"></tr>
+          </thead>
+          <tbody id="datasetTbody"></tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- TAB 2: INTERACTIVE AI / PYTORCH NOTEBOOK -->
+  <div id="tab-pane-notebook" class="studio-pane" style="display: none; flex-direction: column; gap: 20px;">
+    
+    <div class="card" style="padding: 22px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+      
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.3rem;">📓</span>
+          <div>
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: #f8fafc;">Interactive PyTorch & Hugging Face Notebook</h3>
+            <span style="font-size: 0.75rem; color: #94a3b8;">Execute Python cells with pre-injected torch, transformers, datasets, and pandas</span>
+          </div>
+        </div>
+
+        <!-- Recipe Selector -->
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <label style="font-size: 0.8rem; color: #94a3b8;">Load Recipe:</label>
+          <select id="notebookRecipeSelect" class="form-input" style="font-size: 0.8rem; padding: 4px 10px;" onchange="loadNotebookRecipe(this.value)">
+            <option value="inference">1. Pipeline Inference (CPU/GPU)</option>
+            <option value="pandas">2. Read & Manipulate Excel / CSV with Pandas</option>
+            <option value="dataset">3. Load Hugging Face Dataset</option>
+            <option value="tensor">4. PyTorch Tensor Dimensions & Weights</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Notebook Cell Editor -->
+      <div style="background: #020617; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; overflow: hidden; margin-bottom: 14px;">
+        <div style="padding: 8px 14px; background: rgba(30, 41, 59, 0.6); border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-family: monospace; font-size: 0.75rem; color: #38bdf8;">In [1]: Python 3.13 Kernel</span>
+          <button type="button" class="btn btn-primary btn-sm" onclick="runNotebookCell()" style="padding: 4px 14px; font-size: 0.78rem; font-weight: 600;">
+            ▶ Run Cell (Shift+Enter)
+          </button>
+        </div>
+        <textarea id="notebookCode" rows="9" style="width: 100%; background: transparent; border: none; outline: none; padding: 14px; color: #f8fafc; font-family: monospace; font-size: 0.88rem; line-height: 1.5; resize: vertical;" onkeydown="handleNotebookKeydown(event)">import torch
+import transformers
+from AIModel.model_loader import model_manager
+
+print(f"PyTorch Version: {torch.__version__}")
+print(f"Compute Device: {'CUDA GPU' if torch.cuda.is_available() else 'CPU'}")
+print(f"Downloaded Local Models: {[m['slug'] for m in model_manager.list_local_models()]}")
+</textarea>
+      </div>
+
+      <!-- Cell Output Console -->
+      <div style="background: #000; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 14px;">
+        <div style="font-size: 0.72rem; color: #64748b; margin-bottom: 6px; font-family: monospace;">OUT [1]:</div>
+        <pre id="notebookOutput" style="margin: 0; font-family: monospace; font-size: 0.82rem; color: #34d399; white-space: pre-wrap; min-height: 50px;">Ready. Click 'Run Cell' to execute Python code.</pre>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- TAB 3: HUGGING FACE CLI INSIDE -->
+  <div id="tab-pane-cli" class="studio-pane" style="display: none; flex-direction: column; gap: 20px;">
+    
+    <div class="card" style="padding: 22px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+      
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.3rem;">💻</span>
+          <div>
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: #f8fafc;">Embedded Hugging Face CLI Terminal</h3>
+            <span style="font-size: 0.75rem; color: #94a3b8;">Execute native 'hf' and 'huggingface-cli' Hub commands directly</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Command Shortcut Buttons -->
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;">
+        <span style="font-size: 0.75rem; color: #94a3b8; align-self: center;">Quick Actions:</span>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="setCliCommand('hf auth whoami')">hf auth whoami</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="setCliCommand('hf cache scan')">hf cache scan</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="setCliCommand('hf env')">hf env</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="setCliCommand('hf models ls')">hf models ls</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="setCliCommand('hf datasets ls')">hf datasets ls</button>
+      </div>
+
+      <!-- CLI Prompt Input Form -->
+      <form onsubmit="handleCliSubmit(event)" style="display: flex; gap: 10px; margin-bottom: 16px;">
+        <div style="flex: 1; position: relative;">
+          <input type="text" id="cliCommandInput" value="hf auth whoami" class="form-input" style="width: 100%; font-family: monospace; font-size: 0.9rem; padding-left: 36px;" required>
+          <span style="position: absolute; left: 12px; top: 10px; color: #f59e0b; font-family: monospace; font-weight: 700;">$</span>
+        </div>
+        <button type="submit" id="cliRunBtn" class="btn btn-primary" style="background: linear-gradient(135deg, #f59e0b, #ec4899); font-weight: 600; padding: 10px 22px;">
+          Run Command
+        </button>
+      </form>
+
+      <!-- Terminal Output Screen -->
+      <div style="background: #020617; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 16px; min-height: 220px; max-height: 400px; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #64748b; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 6px;">
+          <span>HF CLI TERMINAL</span>
+          <span id="cliLatencyBadge">Elapsed: 0.0s</span>
+        </div>
+        <pre id="cliTerminalOutput" style="margin: 0; font-family: monospace; font-size: 0.82rem; color: #f8fafc; line-height: 1.5; white-space: pre-wrap;">Hugging Face Hub CLI ready. Choose a quick action or enter your command above.</pre>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- TAB 4: FAST MODEL & INFERENCE PLAYGROUND -->
+  <div id="tab-pane-models" class="studio-pane" style="display: none; flex-direction: column; gap: 20px;">
+    
+    <div class="card" style="padding: 22px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 14px;">
+      
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.3rem;">⚡</span>
+          <div>
+            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: #f8fafc;">Model Playground & Inference Hub</h3>
+            <span style="font-size: 0.75rem; color: #94a3b8;">Query models across local hardware or configure Hugging Face Hub tokens</span>
+          </div>
+        </div>
+        <a href="{{ url_for('dashboard.chat') }}" class="btn btn-primary btn-sm" style="font-weight: 600;">
+          💬 Launch Full AI Chat Studio
+        </a>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+        {% for m in local_models %}
+        <div style="padding: 16px; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <span class="badge badge-manager" style="font-size: 0.7rem;">{{ m.model_format }}</span>
+              <span style="font-size: 0.75rem; color: #94a3b8;">{{ m.size_mb }} MB</span>
+            </div>
+            <h4 style="margin: 0; color: #fff; font-size: 0.95rem;">{{ m.name }}</h4>
+            <p style="margin: 4px 0 12px; color: #94a3b8; font-size: 0.78rem;">Path: {{ m.relative_path }}</p>
+          </div>
+          
+          <div style="display: flex; gap: 8px;">
+            <a href="{{ url_for('dashboard.chat') }}" class="btn btn-secondary btn-sm" style="flex: 1; text-align: center;">
+              Chat
+            </a>
+            <a href="{{ url_for('dashboard.fine_tuning') }}" class="btn btn-secondary btn-sm" style="flex: 1; text-align: center;">
+              Fine-Tune
+            </a>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<!-- RENAME COLUMN MODAL -->
+<div id="renameModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+  <div class="card" style="max-width: 520px; width: 100%; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.7); padding: 24px;">
+    
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px;">
+      <h3 style="margin: 0; color: #fff; font-size: 1.1rem; font-weight: 700;">✏️ Rename Column Headers</h3>
+      <button type="button" onclick="closeRenameModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.5rem; cursor: pointer;">&times;</button>
+    </div>
+
+    <form onsubmit="handleRenameSubmit(event)">
+      <div id="renameColumnsList" style="display: flex; flex-direction: column; gap: 12px; max-height: 280px; overflow-y: auto; margin-bottom: 18px;">
+        <!-- Dynamically injected column rename fields -->
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-secondary" onclick="closeRenameModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Apply Renames</button>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<!-- FILTER DATA MODAL -->
+<div id="filterModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+  <div class="card" style="max-width: 480px; width: 100%; background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.7); padding: 24px;">
+    
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px;">
+      <h3 style="margin: 0; color: #fff; font-size: 1.1rem; font-weight: 700;">🔍 Filter Dataset Rows</h3>
+      <button type="button" onclick="closeFilterModal()" style="background: none; border: none; color: #94a3b8; font-size: 1.5rem; cursor: pointer;">&times;</button>
+    </div>
+
+    <form onsubmit="handleFilterSubmit(event)">
+      <div style="margin-bottom: 16px;">
+        <label style="display: block; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; margin-bottom: 6px;">
+          Pandas Query Expression:
+        </label>
+        <input type="text" id="filterQueryInput" class="form-input" placeholder="e.g. category == 'short' or total_value > 1000" style="width: 100%;">
+        <small style="display: block; color: #94a3b8; font-size: 0.72rem; margin-top: 4px;">
+          Use valid Pandas column conditional statements.
+        </small>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-secondary" onclick="closeFilterModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Apply Filter</button>
+      </div>
+    </form>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentDataset = null;
+
+// Tab switcher
+function switchStudioTab(tab) {
+  document.querySelectorAll(".studio-pane").forEach(p => p.style.display = "none");
+  document.querySelectorAll(".studio-tab-btn").forEach(b => {
+    b.style.background = "transparent";
+    b.style.color = "#94a3b8";
+    b.style.border = "none";
+  });
+
+  document.getElementById(`tab-pane-${tab}`).style.display = "flex";
+  const activeBtn = document.getElementById(`tab-btn-${tab}`);
+  activeBtn.style.background = "#1e293b";
+  activeBtn.style.color = "#fff";
+  activeBtn.style.border = "1px solid rgba(255,255,255,0.15)";
+}
+
+// DRAG & DROP HANDLERS
+const dropZone = document.getElementById("dropZone");
+['dragenter', 'dragover'].forEach(eventName => {
+  dropZone.addEventListener(eventName, (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = "#f59e0b";
+    dropZone.style.background = "rgba(245, 158, 11, 0.1)";
+  }, false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+  dropZone.addEventListener(eventName, (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = "rgba(245, 158, 11, 0.4)";
+    dropZone.style.background = "rgba(15, 23, 42, 0.7)";
+  }, false);
+});
+
+dropZone.addEventListener('drop', (e) => {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+  handleFileSelected(files);
+});
+
+async function handleFileSelected(files) {
+  if (!files || files.length === 0) return;
+  const file = files[0];
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  dropZone.innerHTML = `<span class="spinner" style="width:24px;height:24px;"></span> Parsing and indexing ${file.name}...`;
+
+  try {
+    const res = await fetch("/api/v1/hf-studio/dataset/upload", {
+      method: "POST",
+      body: formData
+    });
+    const result = await res.json();
+    if (res.ok) {
+      currentDataset = result.data;
+      renderDatasetTable(result.data);
+    } else {
+      alert("Error: " + (result.detail || "Upload failed"));
+    }
+  } catch (err) {
+    alert("Connection error: " + err.message);
+  } finally {
+    dropZone.innerHTML = `
+      <div style="font-size: 2.8rem; margin-bottom: 10px;">📊</div>
+      <h3 style="margin: 0; color: #f8fafc; font-size: 1.15rem; font-weight: 700;">Drag & Drop Datasets or Excel Spreadsheets Here</h3>
+      <p style="margin: 6px 0 14px; color: #94a3b8; font-size: 0.85rem;">Supports Microsoft Excel (.xlsx, .xls), CSV, JSON, and Parquet.</p>
+      <button type="button" class="btn btn-secondary btn-sm"><span>📁 Browse Files</span></button>
+    `;
+  }
+}
+
+function renderDatasetTable(data) {
+  document.getElementById("datasetWorkspaceCard").style.display = "block";
+  document.getElementById("activeDatasetFilename").innerText = data.filename;
+  document.getElementById("rowCountBadge").innerText = `${data.total_rows} Rows (${data.columns.length} Cols)`;
+
+  // Render sheet selector
+  const sheetSelect = document.getElementById("sheetSelect");
+  sheetSelect.innerHTML = "";
+  data.sheets.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s;
+    opt.innerText = s;
+    if (s === data.active_sheet) opt.selected = true;
+    sheetSelect.appendChild(opt);
+  });
+
+  // Render headers
+  const theadRow = document.getElementById("datasetTheadRow");
+  theadRow.innerHTML = "";
+  data.columns.forEach(c => {
+    const th = document.createElement("th");
+    th.style.cssText = "padding: 10px 14px; text-transform: uppercase; font-size: 0.75rem;";
+    th.innerText = c;
+    theadRow.appendChild(th);
+  });
+
+  // Render rows
+  const tbody = document.getElementById("datasetTbody");
+  tbody.innerHTML = "";
+  data.preview_rows.forEach(r => {
+    const tr = document.createElement("tr");
+    tr.style.cssText = "border-bottom: 1px solid rgba(255, 255, 255, 0.05); color: #cbd5e1;";
+    data.columns.forEach(c => {
+      const td = document.createElement("td");
+      td.style.cssText = "padding: 8px 14px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 0.78rem;";
+      let val = r[c];
+      if (typeof val === "object") val = JSON.stringify(val);
+      td.innerText = val !== undefined ? String(val) : "";
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function openRenameModal() {
+  if (!currentDataset) return;
+  const list = document.getElementById("renameColumnsList");
+  list.innerHTML = "";
+
+  currentDataset.columns.forEach(c => {
+    const div = document.createElement("div");
+    div.style.cssText = "display: flex; align-items: center; gap: 10px;";
+    div.innerHTML = `
+      <span style="flex: 1; font-size: 0.82rem; color: #94a3b8; font-family: monospace;">${c}:</span>
+      <input type="text" class="form-input rename-col-input" data-original="${c}" value="${c}" style="flex: 1.5; font-size: 0.85rem;">
+    `;
+    list.appendChild(div);
+  });
+
+  document.getElementById("renameModal").style.display = "flex";
+}
+
+function closeRenameModal() {
+  document.getElementById("renameModal").style.display = "none";
+}
+
+async function handleRenameSubmit(e) {
+  e.preventDefault();
+  const renames = {};
+  document.querySelectorAll(".rename-col-input").forEach(inp => {
+    const orig = inp.getAttribute("data-original");
+    const val = inp.value.trim();
+    if (val && val !== orig) {
+      renames[orig] = val;
+    }
+  });
+
+  if (Object.keys(renames).length === 0) {
+    closeRenameModal();
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/v1/hf-studio/dataset/manipulate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: currentDataset.filename,
+        active_sheet: document.getElementById("sheetSelect").value,
+        rename_columns: renames
+      })
+    });
+    const result = await res.json();
+    if (res.ok) {
+      currentDataset.columns = result.columns;
+      currentDataset.preview_rows = result.preview_rows;
+      renderDatasetTable(currentDataset);
+      closeRenameModal();
+      alert("Column headers updated successfully!");
+    } else {
+      alert("Error: " + result.detail);
+    }
+  } catch (err) {
+    alert("Connection error: " + err.message);
+  }
+}
+
+function openFilterModal() {
+  document.getElementById("filterModal").style.display = "flex";
+}
+
+function closeFilterModal() {
+  document.getElementById("filterModal").style.display = "none";
+}
+
+async function handleFilterSubmit(e) {
+  e.preventDefault();
+  const query = document.getElementById("filterQueryInput").value.trim();
+  if (!query) return;
+
+  try {
+    const res = await fetch("/api/v1/hf-studio/dataset/manipulate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: currentDataset.filename,
+        active_sheet: document.getElementById("sheetSelect").value,
+        filter_query: query
+      })
+    });
+    const result = await res.json();
+    if (res.ok) {
+      currentDataset.preview_rows = result.preview_rows;
+      currentDataset.total_rows = result.total_rows;
+      renderDatasetTable(currentDataset);
+      closeFilterModal();
+    } else {
+      alert("Error: " + result.detail);
+    }
+  } catch (err) {
+    alert("Connection error: " + err.message);
+  }
+}
+
+function sendToFineTuning() {
+  window.location.href = "/dashboard/fine-tuning";
+}
+
+// NOTEBOOK HANDLERS
+const NOTEBOOK_RECIPES = {
+  inference: `import torch
+from transformers import pipeline
+
+print("Loading local pipeline...")
+pipe = pipeline("text-classification", model="AIModel/model/prajjwal1--bert-tiny")
+out = pipe("The Hugging Face Central Workstation provides outstanding performance!")
+print("Inference Result:", out)`,
+  pandas: `import pandas as pd
+import os
+
+# Inspect available files in datasets_upload
+upload_dir = "AIModel/datasets_upload"
+files = os.listdir(upload_dir) if os.path.exists(upload_dir) else []
+print(f"Uploaded Files: {files}")`,
+  dataset: `from datasets import load_dataset
+# Preview HF datasets library
+print("Hugging Face Datasets library ready for tokenization and dataset streaming.")`,
+  tensor: `import torch
+x = torch.randn(2, 128, device="cuda" if torch.cuda.is_available() else "cpu")
+print(f"Created tensor on {x.device}: shape {x.shape}, dtype {x.dtype}")`
+};
+
+function loadNotebookRecipe(key) {
+  if (NOTEBOOK_RECIPES[key]) {
+    document.getElementById("notebookCode").value = NOTEBOOK_RECIPES[key];
+  }
+}
+
+function handleNotebookKeydown(e) {
+  if (e.key === "Enter" && e.shiftKey) {
+    e.preventDefault();
+    runNotebookCell();
+  }
+}
+
+async function runNotebookCell() {
+  const code = document.getElementById("notebookCode").value;
+  const outPre = document.getElementById("notebookOutput");
+  outPre.innerText = "Executing cell on kernel...";
+
+  try {
+    const res = await fetch("/api/v1/hf-studio/notebook/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: code, session_id: "default" })
+    });
+    const data = await res.json();
+    if (data.error) {
+      outPre.style.color = "#f87171";
+      outPre.innerText = data.error;
+    } else {
+      outPre.style.color = "#34d399";
+      let display = data.stdout || "";
+      if (data.result) display += `\n--> ${data.result}`;
+      if (!display.trim()) display = `Cell executed successfully in ${data.elapsed_seconds}s (no output).`;
+      outPre.innerText = display;
+    }
+  } catch (err) {
+    outPre.style.color = "#f87171";
+    outPre.innerText = "Execution failed: " + err.message;
+  }
+}
+
+// CLI HANDLERS
+function setCliCommand(cmd) {
+  document.getElementById("cliCommandInput").value = cmd;
+  handleCliSubmit(new Event("submit"));
+}
+
+async function handleCliSubmit(e) {
+  e.preventDefault();
+  const cmd = document.getElementById("cliCommandInput").value.trim();
+  if (!cmd) return;
+
+  const btn = document.getElementById("cliRunBtn");
+  btn.disabled = true;
+  btn.innerText = "Running...";
+
+  const outPre = document.getElementById("cliTerminalOutput");
+  outPre.innerText = `Executing: $ ${cmd}\nPlease wait...\n`;
+
+  try {
+    const res = await fetch("/api/v1/hf-studio/cli/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: cmd })
+    });
+    const data = await res.json();
+    document.getElementById("cliLatencyBadge").innerText = `Elapsed: ${data.elapsed_seconds}s | Exit: ${data.exit_code}`;
+
+    let text = `$ ${data.command}\n\n`;
+    if (data.stdout) text += data.stdout;
+    if (data.stderr) text += `\n[STDERR]\n${data.stderr}`;
+    outPre.innerText = text;
+  } catch (err) {
+    outPre.innerText = `Error: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.innerText = "Run Command";
+  }
+}
+</script>
+{% endblock %}

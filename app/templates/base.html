@@ -48,6 +48,10 @@
           <span class="nav-icon">🎯</span>
           <span>Model Fine-Tuning</span>
         </a>
+        <a href="{{ url_for('dashboard.hf_studio') }}" class="nav-link {% if request.url.path == '/dashboard/hf-studio' %}active{% endif %}">
+          <span class="nav-icon">🤗</span>
+          <span>Hugging Face Studio</span>
+        </a>
         <a href="{{ url_for('dashboard.api_keys') }}" class="nav-link {% if request.url.path == '/dashboard/api-keys' %}active{% endif %}">
           <span class="nav-icon">🔑</span>
           <span>API Keys</span>

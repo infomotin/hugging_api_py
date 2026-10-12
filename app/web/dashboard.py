@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from core.security import hash_password
 from core.dependencies import get_current_user_optional, get_current_user
-from models import User, Role, Permission, Resource, AuditLog, ApiKey
+from models import User, Role, Permission, Resource, AuditLog, ApiKey, ChatMessage
 from app.web.templates import render_template
 
 router = APIRouter(tags=["Web Dashboard"])
@@ -451,12 +451,14 @@ def chat_studio_page(
     local_models = model_manager.list_local_models()
     engine_status = chat_engine.get_status()
     api_keys = db.query(ApiKey).filter(ApiKey.user_id == current_user.id, ApiKey.is_active == True).all()
+    chat_history = db.query(ChatMessage).filter(ChatMessage.user_id == current_user.id).order_by(ChatMessage.created_at.asc()).all()
 
     return render_template("dashboard/chat.html", request, {
         "current_user": current_user,
         "local_models": local_models,
         "engine_status": engine_status,
-        "api_keys": api_keys
+        "api_keys": api_keys,
+        "chat_history": chat_history
     })
 
 
@@ -578,3 +580,32 @@ def fine_tuning_studio_page(
         "popular_datasets": POPULAR_HF_DATASETS,
         "recent_jobs": jobs
     })
+
+
+@router.get("/dashboard/hf-studio")
+def hf_studio_page(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    import torch
+    import transformers
+    from AIModel.model_loader import model_manager
+    from AIModel.dataset_hub import POPULAR_HF_DATASETS
+
+    specs = {
+        "pytorch_version": torch.__version__,
+        "transformers_version": transformers.__version__,
+        "cuda_available": torch.cuda.is_available(),
+        "compute_device": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU (Host Processor)"
+    }
+    hf_status = model_manager.get_token_status()
+    local_models = model_manager.list_local_models()
+
+    return render_template("dashboard/hf_studio.html", request, {
+        "current_user": current_user,
+        "specs": specs,
+        "hf_status": hf_status,
+        "local_models": local_models,
+        "popular_datasets": POPULAR_HF_DATASETS
+    })
+

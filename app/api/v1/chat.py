@@ -3,22 +3,25 @@ import uuid
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from core.database import get_db
 from core.dependencies import get_current_user
-from models import User
+from models import User, ChatMessage as DBChatMessage
 from AIModel.chat_engine import chat_engine
 from AIModel.model_loader import model_manager
 
 router = APIRouter(prefix="", tags=["AI Chat Studio"])
 
-class ChatMessage(BaseModel):
+class ChatMessageItem(BaseModel):
     role: str = "user"
     content: str
 
 class ChatCompletionRequest(BaseModel):
     model: Optional[str] = None
-    messages: List[ChatMessage]
+    messages: List[ChatMessageItem]
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 256
+    session_id: Optional[str] = "default"
 
 class SetActiveModelRequest(BaseModel):
     model_slug: str
@@ -32,6 +35,35 @@ def get_engine_status(current_user: User = Depends(get_current_user)):
     return {
         "status": "online",
         "engine": chat_engine.get_status()
+    }
+
+@router.get("/chat/history")
+def get_chat_history(
+    session_id: str = "default",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Retrieves stored conversation history from the PostgreSQL database for the current user."""
+    history = db.query(DBChatMessage).filter(
+        DBChatMessage.user_id == current_user.id
+    ).order_by(DBChatMessage.created_at.asc()).all()
+
+    return {
+        "success": True,
+        "messages": [m.to_dict() for m in history]
+    }
+
+@router.delete("/chat/history")
+def clear_chat_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Clears and deletes all stored chat history for the current user from the database."""
+    db.query(DBChatMessage).filter(DBChatMessage.user_id == current_user.id).delete()
+    db.commit()
+    return {
+        "success": True,
+        "message": "Chat history cleared from database."
     }
 
 @router.post("/chat/active-model")
@@ -50,16 +82,16 @@ def set_active_chat_model(payload: SetActiveModelRequest, current_user: User = D
     }
 
 @router.post("/chat/completions")
-def create_chat_completion(payload: ChatCompletionRequest, current_user: User = Depends(get_current_user)):
+def create_chat_completion(
+    payload: ChatCompletionRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """
     Standard OpenAI-compatible Chat Completions API endpoint.
-    Accessible from outside via:
-    - Authorization: Bearer sk-ent-...
-    - X-API-Key: sk-ent-...
-    - Session JWT Token
+    Also stores all conversations into the PostgreSQL database!
     """
     if payload.model and payload.model != chat_engine.active_model_slug:
-        # If client explicitly specifies a downloaded model, temporarily switch or use it
         local_models = [m["slug"] for m in model_manager.list_local_models()]
         if payload.model in local_models or model_manager.clean_model_slug(payload.model) in local_models:
             chat_engine.set_active_model(
@@ -70,11 +102,48 @@ def create_chat_completion(payload: ChatCompletionRequest, current_user: User = 
             )
 
     messages_dicts = [{"role": m.role, "content": m.content} for m in payload.messages]
+    
+    # Extract last user message
+    last_user_prompt = ""
+    for m in reversed(payload.messages):
+        if m.role == "user":
+            last_user_prompt = m.content
+            break
+
+    # 1. Save user prompt to database
+    if last_user_prompt:
+        user_record = DBChatMessage(
+            user_id=current_user.id,
+            session_id=payload.session_id or "default",
+            role="user",
+            content=last_user_prompt,
+            model=chat_engine.active_model_slug,
+            device=chat_engine.device_mode,
+            tokens=len(last_user_prompt.split())
+        )
+        db.add(user_record)
+        db.flush()
+
+    # 2. Generate real AI reply
     result = chat_engine.generate_reply(
         messages=messages_dicts,
         temperature=payload.temperature or 0.7,
         max_tokens=payload.max_tokens or 256
     )
+    reply_text = result.get("reply", "")
+
+    # 3. Save assistant reply to database
+    assistant_record = DBChatMessage(
+        user_id=current_user.id,
+        session_id=payload.session_id or "default",
+        role="assistant",
+        content=reply_text,
+        model=chat_engine.active_model_slug,
+        device=chat_engine.device_mode,
+        tokens=result.get("usage", {}).get("completion_tokens", len(reply_text.split()))
+    )
+    db.add(assistant_record)
+    db.commit()
 
     cmpl_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
     created_ts = int(time.time())
@@ -89,7 +158,7 @@ def create_chat_completion(payload: ChatCompletionRequest, current_user: User = 
                 "index": 0,
                 "message": {
                     "role": "assistant",
-                    "content": result.get("reply", "")
+                    "content": reply_text
                 },
                 "finish_reason": "stop"
             }
@@ -109,9 +178,7 @@ def create_chat_completion(payload: ChatCompletionRequest, current_user: User = 
 
 @router.get("/models")
 def list_available_models(current_user: User = Depends(get_current_user)):
-    """
-    OpenAI-compatible models catalog list.
-    """
+    """OpenAI-compatible models catalog list."""
     local_models = model_manager.list_local_models()
     data = []
     for m in local_models:
