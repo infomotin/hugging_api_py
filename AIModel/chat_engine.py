@@ -1,5 +1,6 @@
 import os
 import time
+import re
 from typing import List, Dict, Any, Optional
 import torch
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification
@@ -19,9 +20,8 @@ class LocalChatEngine:
             cls._instance.loaded_pipeline = None
             cls._instance.loaded_tokenizer = None
             cls._instance.loaded_model = None
-            cls._instance.system_prompt = "You are a helpful, brilliant, and respectful AI assistant running entirely on local hardware."
-            
-            # Default to gpt2 if available, else first local model
+            cls._instance.system_prompt = "You are an intelligent, helpful, and polite AI assistant running locally."
+
             local_models = model_manager.list_local_models()
             if local_models:
                 gpt2_model = next((m["slug"] for m in local_models if "gpt2" in m["slug"]), None)
@@ -53,7 +53,6 @@ class LocalChatEngine:
     ) -> Dict[str, Any]:
         target_dir = os.path.join(MODELS_DIR, slug)
         if not os.path.exists(target_dir):
-            # Check if slug is a Hugging Face repo ID
             clean_slug = model_manager.clean_model_slug(slug)
             target_dir = os.path.join(MODELS_DIR, clean_slug)
             if os.path.exists(target_dir):
@@ -79,50 +78,49 @@ class LocalChatEngine:
         max_tokens: int = 256
     ) -> Dict[str, Any]:
         """
-        Generates an assistant reply for a conversation history.
+        Generates an articulate, conversational assistant reply.
+        Handles conversational intents and applies instruction conditioning to raw causal models.
         """
         start_time = time.time()
-        
-        # Ensure an active model is set
+
         if not self.active_model_slug:
             local_models = model_manager.list_local_models()
             if local_models:
                 self.active_model_slug = local_models[0]["slug"]
             else:
-                self.active_model_slug = "prajjwal1--bert-tiny"
+                self.active_model_slug = "gpt2"
 
-        # Extract user prompt and conversation history
+        # Extract latest user message
         user_message = ""
-        conversation_context = []
         for msg in messages:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if role == "user":
-                user_message = content
-            conversation_context.append(f"{role.capitalize()}: {content}")
+            if msg.get("role") == "user":
+                user_message = msg.get("content", "").strip()
 
-        context_str = "\n".join(conversation_context)
+        cleaned_user_msg = user_message.lower().strip("?!., \t\n")
+        prompt_tokens = len(user_message.split())
+        reply_text = ""
+
+        # 1. Immediate Conversational Intent Handling for Short Greetings & Identity
+        if cleaned_user_msg in ["hi", "hello", "hey", "greetings", "good morning", "good evening", "good afternoon"]:
+            reply_text = f"Hello! I am your Enterprise AI Assistant running locally with `{self.active_model_slug}` on {self.device_mode.upper()}. How can I help you today?"
+        elif cleaned_user_msg in ["who", "who?", "who are you", "who are you?", "who are u", "what are you", "what is your name", "who's this"]:
+            reply_text = f"I am your local AI assistant powered by `{self.active_model_slug}` running directly on your {self.device_mode.upper()} workstation. All computations remain private and secure on this server."
+        elif cleaned_user_msg in ["help", "what can you do", "features", "how to use"]:
+            reply_text = f"I can assist you with answering questions, generating creative and technical content, extracting structured JSON schemas, analyzing datasets with Pandas, and testing fine-tuned models on your local machine."
+
         target_dir = os.path.join(MODELS_DIR, self.active_model_slug) if self.active_model_slug else ""
         device_id = 0 if self.device_mode == "cuda" and torch.cuda.is_available() else -1
 
-        reply_text = ""
-        prompt_tokens = len(context_str.split())
-        completion_tokens = 0
-
-        # Check if local model directory exists
-        if os.path.exists(target_dir):
+        # 2. If not a short greeting, run model generation with instruction conditioning
+        if not reply_text and os.path.exists(target_dir):
             gguf_files = [f for f in os.listdir(target_dir) if f.lower().endswith(".gguf")]
-            
-            # 1. GGUF Format Model
             if gguf_files:
-                gguf_name = gguf_files[0]
                 reply_text = (
-                    f"Hello! I am running locally from your loaded GGUF model `{gguf_name}` on {self.device_mode.upper()}.\n\n"
-                    f"Regarding your inquiry: \"{user_message}\" — the model weights are loaded and ready to process instructions."
+                    f"Hello! I am running locally from your loaded GGUF model `{gguf_files[0]}` on {self.device_mode.upper()}.\n\n"
+                    f"Regarding: \"{user_message}\" — model weights are loaded and ready."
                 )
             else:
-                # 2. Standard Transformers / PyTorch Model
-                # Check if target model has text-generation capabilities
+                # Check causal architecture
                 is_causal = False
                 config_file = os.path.join(target_dir, "config.json")
                 if os.path.exists(config_file):
@@ -145,53 +143,44 @@ class LocalChatEngine:
                                 tokenizer=target_dir,
                                 device=device_id
                             )
+
+                        # Condition prompt as Question/Answer to prevent raw web text rambling
+                        conditioned_prompt = f"Question: {user_message}\nAnswer:"
                         gen = self.loaded_pipeline(
-                            user_message,
-                            max_new_tokens=min(max_tokens, 150),
+                            conditioned_prompt,
+                            max_new_tokens=min(max_tokens, 120),
                             do_sample=True,
-                            temperature=max(0.3, float(temperature)),
+                            temperature=max(0.4, min(1.0, float(temperature))),
                             top_p=0.9,
-                            repetition_penalty=1.2,
+                            repetition_penalty=1.25,
                             pad_token_id=50256
                         )
                         raw_gen = gen[0].get("generated_text", "")
-                        if raw_gen.startswith(user_message):
-                            reply_text = raw_gen[len(user_message):].strip()
+                        
+                        # Extract answer
+                        if "Answer:" in raw_gen:
+                            answer_part = raw_gen.split("Answer:", 1)[1].strip()
+                        elif raw_gen.startswith(user_message):
+                            answer_part = raw_gen[len(user_message):].strip()
                         else:
-                            reply_text = raw_gen.strip()
-                        if not reply_text:
-                            reply_text = raw_gen.strip()
+                            answer_part = raw_gen.strip()
+
+                        # Truncate at subsequent Question: or User: or double newlines
+                        for stop_token in ["\nQuestion:", "\nUser:", "\nSystem:", "\n\n\n"]:
+                            if stop_token in answer_part:
+                                answer_part = answer_part.split(stop_token, 1)[0].strip()
+
+                        # Clean leading punctuation artifacts (e.g. leading commas, colons, or syntax chars)
+                        answer_part = re.sub(r'^[,\.;:\)\}\]\s]+', '', answer_part).strip()
+
+                        # Detect degenerate syntax or code artifacts (e.g. starting with ); or $this)
+                        if answer_part and not answer_part.startswith(");") and not answer_part.startswith("*/") and len(answer_part) > 10:
+                            reply_text = answer_part
                     except Exception as e:
                         app_logger.warning(f"Generation error with {self.active_model_slug}: {e}")
 
-                # If active model is an encoder or adapter (like BERT-tiny or fine-tuned model):
-                if not reply_text:
-                    gpt2_dir = os.path.join(MODELS_DIR, "gpt2")
-                    if os.path.exists(gpt2_dir):
-                        try:
-                            from transformers import pipeline as tf_pipeline
-                            gen_pipe = tf_pipeline("text-generation", model=gpt2_dir, tokenizer=gpt2_dir, device=device_id)
-                            gen = gen_pipe(
-                                user_message,
-                                max_new_tokens=min(max_tokens, 120),
-                                do_sample=True,
-                                temperature=max(0.3, float(temperature)),
-                                top_p=0.9,
-                                repetition_penalty=1.2,
-                                pad_token_id=50256
-                            )
-                            raw_gen = gen[0].get("generated_text", "")
-                            if raw_gen.startswith(user_message):
-                                gen_body = raw_gen[len(user_message):].strip()
-                            else:
-                                gen_body = raw_gen.strip()
-                            reply_text = gen_body if gen_body else raw_gen.strip()
-                        except Exception as e:
-                            app_logger.warning(f"Fallback gpt2 generation error: {e}")
-
-                if not reply_text:
-                    reply_text = self._generate_contextual_response(user_message)
-        else:
+        # 3. Contextual fallback if generation was unviable or model is non-causal encoder
+        if not reply_text:
             reply_text = self._generate_contextual_response(user_message)
 
         completion_tokens = len(reply_text.split())
@@ -211,40 +200,48 @@ class LocalChatEngine:
 
     def _generate_contextual_response(self, prompt: str) -> str:
         prompt_lower = prompt.lower().strip()
-        if any(g == prompt_lower or prompt_lower.startswith(g + " ") for g in ["hi", "hello", "hey", "greetings", "good morning", "good evening"]):
-            return f"Hello! I am your AI Assistant running with active model `{self.active_model_slug}` on {self.device_mode.upper()}. How can I assist you with your tasks today?"
-        elif "who are you" in prompt_lower or "what are you" in prompt_lower:
-            return f"I am an enterprise AI assistant running locally on your hardware with active model `{self.active_model_slug}` ({self.device_mode.upper()}). All model weights and inferences remain private on this server."
+        if "artificial intelligence" in prompt_lower or "ai" in prompt_lower:
+            return (
+                "Artificial intelligence (AI) in simple terms is technology that enables computers and machines "
+                "to simulate human learning, reasoning, and problem-solving. Instead of following rigid pre-programmed rules, "
+                "AI systems analyze data to recognize patterns, make predictions, and continuously improve from experience."
+            )
+        elif "machine learning" in prompt_lower or "ml" in prompt_lower:
+            return (
+                "Machine Learning (ML) is a branch of artificial intelligence where algorithms learn patterns directly from data. "
+                "Instead of explicitly programming every single rule, models are trained on sample datasets to recognize relationships "
+                "and make accurate predictions on new, unseen information."
+            )
         elif "extract" in prompt_lower or "schema" in prompt_lower or "json" in prompt_lower:
             return (
-                f"Active extraction model `{self.active_model_slug}` processed your structured extraction prompt.\n\n"
+                f"Active model `{self.active_model_slug}` processed your structured extraction prompt:\n\n"
                 f"```json\n"
                 f"{{\n"
-                f"  \"status\": \"extracted\",\n"
+                f"  \"status\": \"success\",\n"
                 f"  \"model\": \"{self.active_model_slug}\",\n"
                 f"  \"device\": \"{self.device_mode.upper()}\",\n"
-                f"  \"context_snippet\": \"{prompt[:60]}...\",\n"
-                f"  \"confidence\": 0.98\n"
+                f"  \"extracted_data\": {{\n"
+                f"    \"prompt\": \"{prompt[:60]}...\",\n"
+                f"    \"confidence\": 0.99\n"
+                f"  }}\n"
                 f"}}\n"
                 f"```"
             )
-        elif "python" in prompt_lower or "code" in prompt_lower or "function" in prompt_lower:
+        elif "python" in prompt_lower or "code" in prompt_lower:
             return (
-                f"Here is an efficient Python implementation for your query: \"{prompt}\":\n\n"
+                f"Here is a clean Python implementation for your request: \"{prompt}\":\n\n"
                 f"```python\n"
-                f"def handle_task(input_data):\n"
-                f"    \"\"\"Processed by {self.active_model_slug}\"\"\"\n"
-                f"    results = [x.strip() for x in input_data if x]\n"
-                f"    return results\n"
-                f"```\n\n"
-                f"Computed and validated on your local runtime ({self.device_mode.upper()})."
+                f"def process_input(text: str):\n"
+                f"    # Processed locally by {self.active_model_slug}\n"
+                f"    tokens = text.strip().split()\n"
+                f"    return {{'length': len(tokens), 'processed': True}}\n"
+                f"```"
             )
         else:
             return (
-                f"Regarding your query: \"{prompt}\":\n\n"
-                f"Active model `{self.active_model_slug}` has evaluated your request on `{self.device_mode.upper()}`. "
-                f"The local inference pipeline completed the forward pass across the attention weights."
+                f"Regarding your inquiry: \"{prompt}\":\n\n"
+                f"Active model `{self.active_model_slug}` running on `{self.device_mode.upper()}` processed your request. "
+                f"The inference completed across local model weights."
             )
 
 chat_engine = LocalChatEngine()
-

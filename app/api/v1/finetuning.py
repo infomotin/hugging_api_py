@@ -76,12 +76,31 @@ def compare_model_inference(
 @router.get("/datasets/search")
 def search_hf_datasets(
     query: str = Query("", description="Search term for Hugging Face datasets"),
-    limit: int = Query(12, ge=1, le=30),
+    task: str = Query("", description="Task category filter (e.g. text-generation, question-answering)"),
+    sort: str = Query("downloads", description="Sort order: downloads, likes, or lastModified"),
+    limit: int = Query(18, ge=1, le=50),
+    hf_token: Optional[str] = Query(None, description="Optional custom Hugging Face API token"),
     current_user: User = Depends(get_current_user)
 ):
-    """Search Hugging Face datasets hub or list curated extraction benchmarks."""
-    results = dataset_hub.search_datasets(query=query, limit=limit)
-    return {"results": results}
+    """Search Hugging Face datasets hub with live queries, sort, task categories, and token support."""
+    results = dataset_hub.search_datasets(
+        query=query,
+        task=task,
+        sort=sort,
+        limit=limit,
+        hf_token=hf_token
+    )
+    return {"results": results, "count": len(results)}
+
+@router.get("/datasets/info")
+def get_dataset_info(
+    dataset_id: str = Query(..., description="Hugging Face dataset repository ID"),
+    hf_token: Optional[str] = Query(None, description="Optional custom Hugging Face API token"),
+    current_user: User = Depends(get_current_user)
+):
+    """Fetch complete repository metadata and card summary from Hugging Face API."""
+    info = dataset_hub.get_dataset_info(dataset_id=dataset_id, hf_token=hf_token)
+    return {"info": info}
 
 @router.get("/datasets/splits")
 def get_dataset_splits(

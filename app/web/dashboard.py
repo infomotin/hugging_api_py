@@ -597,6 +597,7 @@ def hf_studio_page(
     import transformers
     from AIModel.model_loader import model_manager
     from AIModel.dataset_hub import POPULAR_HF_DATASETS
+    from AIModel.hf_studio_service import hf_studio_service
 
     specs = {
         "pytorch_version": torch.__version__,
@@ -606,12 +607,15 @@ def hf_studio_page(
     }
     hf_status = model_manager.get_token_status()
     local_models = model_manager.list_local_models()
+    uploaded_datasets = hf_studio_service.list_uploaded_datasets()
 
     return render_template("dashboard/hf_studio.html", request, {
         "current_user": current_user,
         "specs": specs,
         "hf_status": hf_status,
         "local_models": local_models,
-        "popular_datasets": POPULAR_HF_DATASETS
+        "popular_datasets": POPULAR_HF_DATASETS,
+        "uploaded_datasets": uploaded_datasets,
+        "default_prompt": f"HF-STUDIO {hf_studio_service.workspace_dir}>"
     })
 

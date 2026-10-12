@@ -89,39 +89,135 @@ class HFDatasetHub:
         if settings.HF_TOKEN:
             self.headers["Authorization"] = f"Bearer {settings.HF_TOKEN}"
 
-    def search_datasets(self, query: str = "", limit: int = 12) -> List[Dict[str, Any]]:
-        """Search Hugging Face datasets hub or return curated popular benchmarks."""
+    def search_datasets(
+        self,
+        query: str = "",
+        task: str = "",
+        sort: str = "downloads",
+        limit: int = 18,
+        hf_token: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Search Hugging Face datasets hub with live queries, sort, task categories, and token support."""
         query = query.strip()
-        if not query:
-            return POPULAR_HF_DATASETS
+        headers = dict(self.headers)
+        if hf_token:
+            headers["Authorization"] = f"Bearer {hf_token}"
+        elif settings.HF_TOKEN:
+            headers["Authorization"] = f"Bearer {settings.HF_TOKEN}"
 
-        # 1. Check local preset matches
-        matches = [d for d in POPULAR_HF_DATASETS if query.lower() in d["id"].lower() or query.lower() in d["name"].lower()]
-        if matches:
-            return matches
+        params: Dict[str, Any] = {
+            "limit": min(limit, 50),
+            "full": "true"
+        }
+        if query:
+            params["search"] = query
+        if sort in ["downloads", "likes", "lastModified"]:
+            params["sort"] = sort
+            params["direction"] = "-1"
+        if task and task.lower() not in ["all", ""]:
+            params["filter"] = f"task_categories:{task.lower()}"
 
-        # 2. Query Hugging Face Hub API
-        url = f"https://huggingface.co/api/datasets?search={urllib.parse.quote(query)}&limit={limit}"
+        url = f"https://huggingface.co/api/datasets?{urllib.parse.urlencode(params)}"
         try:
-            req = urllib.request.Request(url, headers=self.headers)
-            with urllib.request.urlopen(req, timeout=6) as response:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=8) as response:
                 items = json.loads(response.read().decode("utf-8"))
                 results = []
                 for item in items:
                     ds_id = item.get("id") or item.get("_id", "")
+                    if not ds_id:
+                        continue
+                    
+                    tags = item.get("tags", [])
+                    task_tag = next((t.replace("task_categories:", "") for t in tags if "task_categories:" in t), "text-generation")
+                    license_tag = next((t.replace("license:", "") for t in tags if "license:" in t), "apache-2.0")
+                    size_tag = next((t.replace("size_categories:", "") for t in tags if "size_categories:" in t), "")
+                    
+                    downloads = item.get("downloads", 0)
+                    likes = item.get("likes", 0)
+                    author = item.get("author") or (ds_id.split("/")[0] if "/" in ds_id else "hub")
+                    name = ds_id.split("/")[-1] if "/" in ds_id else ds_id
+
+                    # Format human readable numbers
+                    if downloads >= 1_000_000:
+                        fmt_down = f"{downloads / 1_000_000:.1f}M"
+                    elif downloads >= 1_000:
+                        fmt_down = f"{downloads / 1_000:.1f}k"
+                    else:
+                        fmt_down = str(downloads)
+
+                    fmt_likes = f"{likes / 1_000:.1f}k" if likes >= 1_000 else str(likes)
+
                     results.append({
                         "id": ds_id,
-                        "name": ds_id.split("/")[-1] if "/" in ds_id else ds_id,
+                        "name": name,
+                        "author": author,
                         "description": item.get("description") or f"Hugging Face dataset repository: {ds_id}",
-                        "task": "NLP / General",
+                        "task": task_tag,
+                        "license": license_tag,
+                        "size": size_tag,
+                        "downloads": downloads,
+                        "formatted_downloads": fmt_down,
+                        "likes": likes,
+                        "formatted_likes": fmt_likes,
                         "viewer_url": f"https://huggingface.co/datasets/{ds_id}/viewer",
-                        "default_input_col": "text",
-                        "default_target_col": "label"
+                        "repo_url": f"https://huggingface.co/datasets/{ds_id}",
+                        "default_input_col": "instruction" if "instruct" in ds_id.lower() or "alpaca" in ds_id.lower() else ("question" if "qa" in ds_id.lower() or "squad" in ds_id.lower() else ("data_schema" if "extract" in ds_id.lower() else "text")),
+                        "default_target_col": "output" if "instruct" in ds_id.lower() or "alpaca" in ds_id.lower() else ("answers" if "qa" in ds_id.lower() or "squad" in ds_id.lower() else ("expected_output" if "extract" in ds_id.lower() else "label"))
                     })
-                return results or POPULAR_HF_DATASETS
+                if results:
+                    return results
         except Exception as e:
             app_logger.warning(f"Failed to search HF datasets online: {e}")
-            return POPULAR_HF_DATASETS
+
+        # Fallback to local curated popular datasets if query fails or network issues
+        if query:
+            filtered = [d for d in POPULAR_HF_DATASETS if query.lower() in d["id"].lower() or query.lower() in d["name"].lower() or query.lower() in d["task"].lower()]
+            return filtered or POPULAR_HF_DATASETS
+        return POPULAR_HF_DATASETS
+
+    def get_dataset_info(self, dataset_id: str, hf_token: Optional[str] = None) -> Dict[str, Any]:
+        """Fetch complete repository metadata and card data from Hugging Face API."""
+        url = f"https://huggingface.co/api/datasets/{urllib.parse.quote(dataset_id)}"
+        headers = dict(self.headers)
+        if hf_token:
+            headers["Authorization"] = f"Bearer {hf_token}"
+        elif settings.HF_TOKEN:
+            headers["Authorization"] = f"Bearer {settings.HF_TOKEN}"
+        
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                tags = data.get("tags", [])
+                return {
+                    "id": data.get("id", dataset_id),
+                    "author": data.get("author", dataset_id.split("/")[0] if "/" in dataset_id else "hub"),
+                    "downloads": data.get("downloads", 0),
+                    "likes": data.get("likes", 0),
+                    "description": data.get("description", "") or f"Hugging Face repository: {dataset_id}",
+                    "tags": tags[:12],
+                    "lastModified": data.get("lastModified", ""),
+                    "license": next((t.replace("license:", "") for t in tags if "license:" in t), "apache-2.0"),
+                    "task": next((t.replace("task_categories:", "") for t in tags if "task_categories:" in t), "text-generation"),
+                    "viewer_url": f"https://huggingface.co/datasets/{dataset_id}/viewer",
+                    "repo_url": f"https://huggingface.co/datasets/{dataset_id}"
+                }
+        except Exception as e:
+            app_logger.warning(f"Error fetching dataset info for {dataset_id}: {e}")
+            return {
+                "id": dataset_id,
+                "author": dataset_id.split("/")[0] if "/" in dataset_id else "hub",
+                "downloads": 0,
+                "likes": 0,
+                "description": f"Hugging Face dataset repository: {dataset_id}",
+                "tags": ["nlp", "dataset"],
+                "lastModified": "",
+                "license": "apache-2.0",
+                "task": "nlp",
+                "viewer_url": f"https://huggingface.co/datasets/{dataset_id}/viewer",
+                "repo_url": f"https://huggingface.co/datasets/{dataset_id}"
+            }
 
     def fetch_dataset_splits(self, dataset_id: str) -> List[Dict[str, str]]:
         """Fetch available configs and splits for a dataset (e.g. short, medium, long or train, test)."""
@@ -199,7 +295,55 @@ class HFDatasetHub:
                 }
         except Exception as e:
             app_logger.warning(f"Datasets server rows fetch error for {dataset_id}: {e}")
-            # Fallback to sample rows
+            
+            # Domain-specific fallback samples
+            ds_key = dataset_id.lower().strip()
+            fallback_map = {
+                "imdb": {
+                    "columns": ["text", "label"],
+                    "rows": [
+                        {"text": "An absolute masterpiece of modern cinema. Outstanding acting and directing.", "label": 1},
+                        {"text": "The pacing was painfully slow and the plot had numerous inconsistencies.", "label": 0},
+                        {"text": "Brilliant cinematography and deeply emotional musical score throughout.", "label": 1},
+                        {"text": "Uninspired script with superficial character development. Quite disappointing.", "label": 0}
+                    ]
+                },
+                "squad": {
+                    "columns": ["question", "context", "answers"],
+                    "rows": [
+                        {"question": "What is the capital of France?", "context": "Paris is the capital and most populous city of France.", "answers": "Paris"},
+                        {"question": "When was the UN established?", "context": "The United Nations was established on 24 October 1945.", "answers": "24 October 1945"}
+                    ]
+                },
+                "tatsu-lab/alpaca": {
+                    "columns": ["instruction", "input", "output"],
+                    "rows": [
+                        {"instruction": "Give three tips for staying healthy.", "input": "", "output": "1. Eat a balanced diet. 2. Exercise regularly. 3. Get 8 hours of sleep."},
+                        {"instruction": "What are primary colors?", "input": "", "output": "Red, Yellow, and Blue in painting; Red, Green, and Blue in digital screens."}
+                    ]
+                },
+                "databricks/databricks-dolly-15k": {
+                    "columns": ["instruction", "context", "response"],
+                    "rows": [
+                        {"instruction": "Explain quantum computing in simple terms.", "context": "", "response": "Quantum computers use qubits that can represent 0 and 1 simultaneously through superposition to solve complex tasks."}
+                    ]
+                }
+            }
+
+            for k, v in fallback_map.items():
+                if k in ds_key:
+                    return {
+                        "dataset": dataset_id,
+                        "config": config,
+                        "split": split,
+                        "columns": v["columns"],
+                        "rows": v["rows"][:length],
+                        "total_rows": len(v["rows"]),
+                        "is_cached": True,
+                        "fallback_notice": f"Sample preview generated ({k})"
+                    }
+
+            # Generic fallback to ExtractBench rows
             return {
                 "dataset": dataset_id,
                 "config": config,

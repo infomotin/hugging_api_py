@@ -1,13 +1,15 @@
+import os
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 import torch
 import transformers
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core.dependencies import get_current_user
 from models import User, AuditLog
-from AIModel.hf_studio_service import hf_studio_service
+from AIModel.hf_studio_service import hf_studio_service, UPLOADED_DATASETS_DIR
 from AIModel.model_loader import model_manager
 
 router = APIRouter(prefix="/hf-studio", tags=["Hugging Face Central Workstation"])
@@ -21,7 +23,7 @@ class DatasetManipulateRequest(BaseModel):
     new_sheet_name: Optional[str] = None
 
 class CliRunRequest(BaseModel):
-    command: str = Field(..., description="Hugging Face CLI command, e.g. 'hf auth whoami' or 'hf cache scan'")
+    command: str = Field(..., description="Hugging Face CLI, Python, or shell command to execute in COM mode")
 
 class NotebookRunRequest(BaseModel):
     code: str = Field(..., description="Python/PyTorch code snippet to execute")
@@ -45,6 +47,30 @@ def get_system_specs(current_user: User = Depends(get_current_user)):
         "hf_username": hf_token_status.get("username"),
         "local_models_count": len(local_models)
     }
+
+# =========================================================================
+# DATASET MANAGEMENT ROUTES
+# =========================================================================
+@router.get("/datasets/list")
+def list_uploaded_datasets(current_user: User = Depends(get_current_user)):
+    """List all user-uploaded datasets and spreadsheets stored on the server."""
+    return {"datasets": hf_studio_service.list_uploaded_datasets()}
+
+@router.get("/datasets/download/{filename}")
+def download_dataset_file(filename: str, current_user: User = Depends(get_current_user)):
+    """Downloads a dataset file from storage."""
+    file_path = os.path.join(UPLOADED_DATASETS_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path, filename=filename)
+
+@router.delete("/datasets/{filename}")
+def delete_dataset_file(filename: str, current_user: User = Depends(get_current_user)):
+    """Deletes an uploaded dataset file from storage."""
+    success = hf_studio_service.delete_dataset(filename)
+    if not success:
+        raise HTTPException(status_code=404, detail="File not found")
+    return {"success": True, "message": f"Dataset '{filename}' deleted."}
 
 @router.post("/dataset/upload")
 async def upload_dataset_file(
@@ -95,6 +121,9 @@ def manipulate_dataset_file(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+# =========================================================================
+# REAL PROMPT COM / TERMINAL CLI ROUTE
+# =========================================================================
 @router.post("/cli/run")
 def run_cli_command(
     payload: CliRunRequest,
@@ -102,7 +131,7 @@ def run_cli_command(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Executes embedded Hugging Face CLI command inside the workstation."""
+    """Executes command in real COM/Terminal prompt mode (HF CLI, Python, Pip, or Shell)."""
     res = hf_studio_service.run_hf_cli(payload.command)
 
     log = AuditLog(
@@ -117,6 +146,9 @@ def run_cli_command(
 
     return res
 
+# =========================================================================
+# INTERACTIVE PYTORCH NOTEBOOK ROUTES
+# =========================================================================
 @router.post("/notebook/run")
 def run_notebook_code(
     payload: NotebookRunRequest,
@@ -125,3 +157,12 @@ def run_notebook_code(
     """Executes interactive Python / PyTorch code cell in notebook kernel."""
     res = hf_studio_service.execute_notebook_cell(payload.code, payload.session_id or "default")
     return res
+
+@router.post("/notebook/reset")
+def reset_notebook_kernel(
+    session_id: Optional[str] = Query("default"),
+    current_user: User = Depends(get_current_user)
+):
+    """Resets variables in interactive notebook kernel."""
+    hf_studio_service.reset_notebook_session(session_id)
+    return {"success": True, "message": "Notebook kernel session reset."}
